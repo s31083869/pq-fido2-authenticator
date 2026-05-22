@@ -1,0 +1,38 @@
+{
+  "name": "pq-webauthn-extension",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "setup": "bun run setup:liboqs:wasm && bun run build:wasm",
+    "build": "vite build",
+    "build:all": "bun run build:wasm && bun run build",
+    "setup:liboqs:wasm": "bun scripts/run-bash.ts scripts/setup-liboqs-emscripten.sh",
+    "build:wasm": "bun scripts/run-bash.ts scripts/build-liboqs-wasm.sh",
+    "build:native-host:macos": "bun scripts/run-bash.ts scripts/build-native-host-macos.sh",
+    "build:native-host:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-native-host-windows.ps1",
+    "install:native-host:macos": "bun scripts/run-bash.ts scripts/install-native-host-macos.sh",
+    "install:native-host:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-native-host-windows.ps1",
+    "setup:touch-id:macos": "bun scripts/run-bash.ts scripts/setup-touch-id-uv-macos.sh",
+    "setup:windows-hello": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-windows-hello.ps1",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.292",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "bun-types": "^1.3.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}

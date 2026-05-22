@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "PQ WebAuthn Hook",
+  "description": "Interception-based Post-Quantum WebAuthn authenticator for demo.yubico.com",
+  "version": "0.1.0",
+  "permissions": ["storage", "nativeMessaging"],
+  "host_permissions": ["https://demo.yubico.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://demo.yubico.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js", "chunks/*.js", "assets/*", "wasm/*.wasm"],
+      "matches": ["https://demo.yubico.com/*"]
+    }
+  ],
+  "options_page": "options.html"
+}

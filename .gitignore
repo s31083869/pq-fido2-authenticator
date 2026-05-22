@@ -1,0 +1,35 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# dev
+.pytest_cache/
+.ruff_cache/
+.env
+authenticator/data/credential_index.json
+authenticator/data/credentials/
+rp_server/data/rp.db
+.DS_Store
+
+# Extension build/dependency artifacts
+extension/node_modules/
+extension/dist/
+extension/.deps/
+extension/.native-host/
+extension/emsdk/
+
+# Frontend/dependency artifacts
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+drizzle/node_modules/
+drizzle/dist/
+drizzle/out/
