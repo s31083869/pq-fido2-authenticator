@@ -3,7 +3,7 @@
 | 項目 | 內容 |
 |---|---|
 | 建立日期 | 2026-11-13 |
-| 分支 | `feature/fn-dsa-integration`（從 `main` 49247e0 切出） |
+| 分支 | 每天一個分支（`day-01`、`day-02`…），完成後合併回 `main`；Day 0 使用 `feature/fn-dsa-integration` |
 | 依據 | [workflow.md](../workflow.md)、[FALCON_INTEGRATION_HANDOVER.md](docs/FALCON_INTEGRATION_HANDOVER.md) |
 | 工作量 | 每天約 3 小時，共 12 天（Day 1–Day 12） |
 | 狀態 | 已確認（第 3 節的設計決策 D1–D6 已於 2026-11-13 確認） |
@@ -66,12 +66,13 @@
 ### 每天 3 小時的進行方式
 1. 約 15 分鐘：回顧前一天、確認今天的目標
 2. 約 2 小時：實作（Claude 寫程式，你審閱並提問）
-3. 約 30 分鐘：跑測試、commit
+3. 約 30 分鐘：跑測試、commit、push 並合併回 `main`
 4. 約 15 分鐘：更新本文件的勾選狀態
 
 ### Day 0｜11/13：準備（已完成）
 - [x] 建立分支 `feature/fn-dsa-integration`
 - [x] 撰寫本計畫
+- [x] 改為每日分支、每日合併的流程（見第 8 節）
 
 ### Day 1｜11/14：前置修正
 - [ ] 在 `pyproject.toml` 設定 pytest 的 `testpaths`（0.5h）
@@ -151,7 +152,7 @@
 
 ### Day 12｜11/25：緩衝與收尾
 - [ ] 回歸測試：ML-DSA 與 FN-DSA、兩條路線都跑一次（1.5h）
-- [ ] 整理 commit，討論是否開 PR 合併回 `main`（1.5h）
+- [ ] 確認 `main` 上是最終版本，整理成果與報告素材（1.5h）
 
 > 若某天進度落後就整體順延。以 2027 年 3 月前的期限來看，仍有充足緩衝。
 
@@ -203,9 +204,9 @@
 
 ## 8. 分支與提交方式
 
-- 所有工作都在 `feature/fn-dsa-integration` 上進行
-- 每完成一個項目就 commit 一次，訊息標註 F 編號，例如 `feat(rp): verify FN-DSA assertions (F03-F04)`
-- 推送到遠端或開 PR 前先討論確認
+- 每天開始時，從最新的 `main` 開一個當天的分支，例如 `day-01`
+- 當天的工作完成、測試通過後 commit，訊息格式為 `Day N: 今天做了什麼`，例如 `Day 1: 設定 pytest testpaths、修正 RP 的 clientDataJSON hash`
+- push 當天的分支到 GitHub，再合併回 `main` 並 push
 
 ---
 
