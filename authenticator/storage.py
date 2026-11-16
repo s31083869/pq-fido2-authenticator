@@ -120,7 +120,8 @@ class CredentialStore:
         所以讀出之後，還要比對檔案內記錄的 ID 是否和要找的完全相同。
 
         參數：
-            credential_id：要讀取的憑證 ID，可能來自 RP 的請求，因此不可信任。
+            credential_id：要讀取的憑證 ID，來自 allowCredentials 或 excludeCredentials。
+                這是 RP 或頁面送來的值；經由 Python bridge，任何網站都能直接送出任意 ID，因此不可信任。
 
         回傳：
             讀出的憑證紀錄。
@@ -166,8 +167,10 @@ class CredentialStore:
     def _credential_file(self, credential_id: str) -> Path:
         """回傳某張憑證的加密檔路徑：<憑證資料夾>/<credential ID>.bin。
 
-        credential ID 可能來自 RP 的請求，必須先確認只含 base64url 字元；
-        否則像「../」這種路徑寫法會讓路徑跳出憑證資料夾，開到其他檔案。
+        credential ID 是 RP 或頁面送來的值（經由 Python bridge，任何網站都能送出任意 ID），
+        必須在碰到檔案系統之前，先確認它只含 base64url 字元。否則「../」、絕對路徑、
+        「//主機/共用資料夾」這類網路路徑，都會讓路徑跳出憑證資料夾：讀到其他檔案，
+        或在 Windows 上連線到外部主機。load() 讀出後的 ID 比對發生在讀檔之後，擋不住這一點。
 
         參數：
             credential_id：憑證 ID。

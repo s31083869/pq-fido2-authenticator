@@ -169,15 +169,18 @@ def _origin_from_url(url: Optional[str]) -> Optional[str]:
     """從頁面網址取出 WebAuthn 的 origin：「協定://網域[:埠]」，不含路徑、查詢字串與帳密。
 
     例如 http://localhost:3000/register?step=2 → http://localhost:3000。
-    frame.url 是瀏覽器整理過的網址：網域已轉成小寫、預設埠（http 的 80、https 的 443）已省略，
-    所以直接取協定和「網域＋埠」，就和瀏覽器算出的 origin 相同。
+    frame.url 是 Chromium 正規化過的網址：網域已轉成小寫、預設埠（http 的 80、https 的 443）已省略，
+    所以對一般的 http(s) 頁面，結果就是瀏覽器算出的 origin。
+    已知的例外是 sandbox iframe：瀏覽器把它的 origin 當成不透明的 "null"，但只看網址分辨不出來，
+    這裡仍會回傳網址的 origin。
 
     參數：
         url：呼叫者所在 frame 的網址。
 
     回傳：
-        origin 字串；網址是空的或沒有網域（例如 about:blank）時回傳 None，
-        交給 authenticator 以「Missing origin」拒絕，因為這種頁面沒有可以綁定憑證的網站。
+        origin 字串。網址是空的或沒有網域時（例如 about:blank、about:srcdoc、blob: 開頭的網址）
+        回傳 None，交給 authenticator 以「Missing origin」拒絕。這類頁面在瀏覽器中會沿用建立它的頁面
+        或內層網址的 origin，但只看 frame.url 無法得知是哪一個，所以選擇拒絕，而不是去猜。
     """
     if not url:
         return None

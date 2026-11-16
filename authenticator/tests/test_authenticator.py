@@ -230,7 +230,8 @@ def test_get_assertion_rejects_allowed_id_differing_only_in_case(authenticator):
 
     依據：credential ID 是不透明的 bytes，必須完全相同才算同一張憑證（WebAuthn §6.3.3、
     Phase-1 spec 6.2）。Windows 的檔案系統比對檔名時不分大小寫，不能讓它決定比對結果。
-    CI 的 Linux 改用 keyring 儲存，沒有這個問題，在那裡這個測試是回歸保護。
+    只有 Windows 的 file 儲存後端會重現這個問題。CI 的 Linux 改用 keyring 儲存，測試用的假 keyring
+    區分大小寫，所以這個測試在 CI 上只能保護挑選憑證的流程，偵測不到大小寫問題。
     """
     creation = authenticator.make_credential(
         make_creation_options(), origin="https://example.com"
