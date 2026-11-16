@@ -375,3 +375,26 @@ liboqs 編譯優化：
 
 1. 進入安全性更新階段（依 `codex/SECURITY_REPORTS/*.md` 項目逐步處理）。
 2. UV 主線先維持可用狀態，不在本輪引入大規模重構。
+
+---
+
+## 15. FN-DSA 整合階段（2026-11）
+
+每日計畫見 `codex/FN-DSA-PLAN.md`，每天的細節見 `codex/worklog/`。
+
+### 15.1 Decision Log 增補
+
+40. 2026-11-13：查證標準現況。ML-DSA 依 FIPS 204（2024-08-13）；COSE 編號 -48/-49/-50 與 AKP 金鑰類型（kty = 7）已由 RFC 9964 正式登記。專案的 ML-DSA 實作符合標準（liboqs `ML-DSA-44/65/87`、pure ML-DSA、context 為空字串）。
+41. 2026-11-13：FN-DSA 依 Falcon 原作者提交給 NIST 的第三輪規格 v1.2（2020-10-01）實作，使用 liboqs 的 Falcon-512/1024，官方 KAT 100/100 筆逐 byte 一致。FIPS 206 尚未發布，NIST 已公告將修改原規格，正式版發布後需要遷移並重新註冊憑證。
+42. 2026-11-13（D1）：FN-DSA-512 = -54、FN-DSA-1024 = -55，標示為暫定；這兩個編號是 draft-ietf-cose-falcon-04 申請中的值，IANA 尚未分配。
+43. 2026-11-13（D2）：liboqs 變體採用 `Falcon-512`／`Falcon-1024`（不補滿格式，與官方 KAT 相同）。
+44. 2026-11-13（D3）：建立共用演算法表 `shared/pq-algorithms.json`，Python 與 TypeScript 讀同一份，C bridge 以測試檢查一致性。
+45. 2026-11-13（D4）：WASM 端的 liboqs 固定在 commit 33815beb，不再追 `main`；Python 端維持 liboqs 0.14.0。
+46. 2026-11-13（D5）：Extension 在開發時允許 `http://localhost:3000`，以便用本機 RP 做 FN-DSA 端到端測試。
+47. 2026-11-13（D6）：RP 預設宣告順序為 `[-49, -48, -50, -54, -55]`，維持 ML-DSA 優先。
+48. 2026-11-13：工作流程改為每個 Day 一個 `day-NN` 分支，commit 訊息格式為 `Day N: …`，PR 由使用者在 GitHub 合併。
+49. 2026-11-16：建立專案守則 `CLAUDE.md`：語言與註解、每日流程、TDD 與避免球員兼裁判的六項措施、每次 commit 前必跑的檢查、GitHub Actions CI。
+50. 2026-11-16：新增協議導覽 `codex/PROTOCOL-GUIDE.html`，名詞表以導覽第 11 章為唯一版本。
+51. 2026-11-16：RP 登入驗章改用收到的 clientDataJSON 原始 bytes 計算雜湊（WebAuthn §7.2），不再解析後重新序列化。
+52. 2026-11-16：Python authenticator 的 allowCredentials 只從清單中挑選屬於目前 rpId 的憑證，挑不到就拒絕（Phase-1 spec 6.2）。
+53. 2026-11-16：Python authenticator 缺少 origin 時直接回報錯誤，不自動填入預設值。
