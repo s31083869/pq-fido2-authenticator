@@ -4,7 +4,7 @@
 |---|---|
 | 日期 | 2026-11-16 |
 | 分支 | `day-01`（從 `origin/main` 83d4f58 開出） |
-| 狀態 | 開工完成：理解確認已對上、測試案例已核准，開始實作 |
+| 狀態 | 完工：A1–A6、B6–B8、C9–C10 與兩次追加工作都已完成，待 PR 的 CI 結果（S3） |
 
 ---
 
@@ -239,12 +239,17 @@ ruff 排版（A4）排在開工文件之後的第一個 commit。現有程式有
 | `c679adf` | `authenticator/service.py:250` | 註解補上清單為空的情況 | 依第 1 次獨立審查 |
 | `c0e3000` | `codex/worklog/day-01.md:122–171` | 開工段落新增「追加工作」：兩個安全問題、預計修改、T7–T11 與對齊紀錄 | 在實作前留下追加的測試案例與核准紀錄 |
 | `2192982` | `authenticator/storage.py:7`、`18–20` | 新增 `_CREDENTIAL_ID_PATTERN`：credential ID 只能由 base64url 字元組成 | 讓 ID 無法被解讀成路徑 |
-| `2192982` | `authenticator/storage.py:166–180`（關鍵在第 178 行） | `_credential_file()` 先檢查 ID 的字元，不合法就當作找不到，並補齊註解 | 防止 `../` 這類 ID 讓路徑跳出憑證資料夾 |
-| `2192982` | `authenticator/storage.py:115–138`（關鍵在第 136 行） | `load()` 讀出後比對檔案內記錄的 ID 是否完全相同，並補齊註解 | Windows 的檔名比對不分大小寫，不能讓檔案系統決定是不是同一張憑證 |
-| `2192982` | `authenticator/tests/test_authenticator.py:228–278` | T7（第 228 行）、T8（第 247 行）、T9（第 261 行） | 驗證追加工作 1 |
-| `e35c60a` | `authenticator/bridge.py:7–8`、`168–189` | 新增 `_origin_from_url()`：從網址取出「協定://網域[:埠]」 | 依呼叫者的真實網址算出 origin |
-| `e35c60a` | `authenticator/bridge.py:246–292` | `_handle_make()`、`_handle_get()` 改用 `source["frame"].url`，不再讀 `payload["origin"]`，並補齊整個函式的註解 | 符合 WebAuthn §5.8.1：origin 由瀏覽器填入，網頁無法指定 |
-| `e35c60a` | `authenticator/tests/test_bridge.py:1–67`（新增） | T10（第 47 行）、T11（第 59 行），註冊、登入兩個入口各測一次 | 驗證追加工作 2 |
+| `2192982` | `authenticator/storage.py:167–183`（關鍵在第 181 行） | `_credential_file()` 先檢查 ID 的字元，不合法就當作找不到，並補齊註解 | 防止 `../` 這類 ID 讓路徑跳出憑證資料夾 |
+| `2192982` | `authenticator/storage.py:115–139`（關鍵在第 137 行） | `load()` 讀出後比對檔案內記錄的 ID 是否完全相同，並補齊註解 | Windows 的檔名比對不分大小寫，不能讓檔案系統決定是不是同一張憑證 |
+| `2192982` | `authenticator/tests/test_authenticator.py:228–279` | T7（第 228 行）、T8（第 248 行）、T9（第 262 行） | 驗證追加工作 1 |
+| `e35c60a` | `authenticator/bridge.py:7–8`、`176–200` | 新增 `_origin_from_url()`：從網址取出「協定://網域[:埠]」 | 依呼叫者的真實網址算出 origin |
+| `e35c60a` | `authenticator/bridge.py:257–303` | `_handle_make()`、`_handle_get()` 改用 `source["frame"].url`，不再讀 `payload["origin"]`，並補齊整個函式的註解 | 符合 WebAuthn §5.8.1：origin 由瀏覽器填入，網頁無法指定 |
+| `e35c60a` | `authenticator/tests/test_bridge.py:1–97`（新增） | T10（第 72 行）、T11（第 86 行），註冊、登入兩個入口各測一次 | 驗證追加工作 2 |
+| `de413e0` | `authenticator/bridge.py:176–200`、`authenticator/storage.py:115–139`、`167–183`、`authenticator/tests/test_bridge.py`、`authenticator/tests/test_authenticator.py:228–245` | 依第 2 次獨立審查更正與補齊註解（只改註解與 docstring，拿掉 docstring 後的語法樹不變） | 修正寫錯的理由，讓註解符合守則 |
+| `c1bd1f0` | `codex/PROTOCOL-GUIDE.html` 第 3、10、11 章 | 說明 bridge 取得 origin 的方式；更新測試數；名詞表新增 binding、frame | 導覽跟上程式的變動；新術語進名詞表 |
+| `e19f74a` | `codex/worklog/day-01.md` | 開工段落新增「追加工作 2」（T12、T13 與對齊紀錄）；完工段落記錄第 2 次審查 | 在寫測試之前留下核准紀錄 |
+| `3486103` | `authenticator/tests/test_storage.py:40–119` | `_settings()`（第 40 行）、T12（第 60 行，3 種寫法）、T13（第 88 行） | 讓字元檢查與 ID 比對都有測試保護，Linux 的 CI 也偵測得到 |
+| `2ba3d1f` | `authenticator/bridge.py:128–169` | 注入腳本不再在 payload 放用不到的 origin，並補齊 `wrapNavigator()` 的註解 | 避免讀者誤以為 origin 來自頁面；行為不變 |
 | 完工紀錄 | `codex/REPORTS.md:401–402` | Decision Log 第 54–55 號 | 記錄兩個安全修正 |
 | 完工紀錄 | `codex/FN-DSA-PLAN.md` | 日期順延 2 天、勾選 Day 1（含追加的安全修正）、每日流程與分支規則改為指向 `CLAUDE.md` | 讓計畫和實際進度一致 |
 | 完工紀錄 | `codex/worklog/day-01.md` | 完工段落 | 本段 |
@@ -264,8 +269,13 @@ ruff 排版（A4）排在開工文件之後的第一個 commit。現有程式有
 | T9 | 紅燈（Windows）：`CredentialStoreError: Credential creation excluded by RP`（誤判為重複註冊） | 綠燈 |
 | T10 | 紅燈：註冊、登入兩個入口都把頁面自稱的 `http://localhost:3000` 交給 authenticator | 綠燈 |
 | T11 | 紅燈：兩個入口交給 authenticator 的 origin 都是 `None` | 綠燈 |
+| T12 | 綠燈（實作已在 `2192982`；有效性由破壞檢查證明） | 綠燈 |
+| T13 | 綠燈（實作已在 `2192982`；有效性由破壞檢查證明） | 綠燈 |
 
-整體：Python 測試從 14 個增為 28 個，Extension 11 個、Frontend 4 個，全部通過。從第 2 個 commit 起，每個 commit 都通過 8 項必跑檢查。T7–T9 的紅燈只會在 Windows 出現；CI 的 Linux 改用 keyring 儲存，這三個測試在那裡是回歸保護。
+整體：Python 測試從 14 個增為 32 個，Extension 11 個、Frontend 4 個。
+- 從第 2 個 commit 到 `c1bd1f0`，每個 commit 都通過 8 項必跑檢查。
+- `e19f74a`、`3486103`、`2ba3d1f` 依使用者決定，commit 前只跑 ruff 與 T12、T13；`2ba3d1f` 只改注入腳本，另外用 `node --check` 確認語法。全套測試由 PR 上的 CI 執行。
+- T7–T9 的紅燈只會在 Windows 出現：CI 的 Linux 改用 keyring 儲存，假 keyring 區分大小寫。T13 補上這個缺口。
 
 ### 破壞檢查
 
@@ -279,8 +289,10 @@ ruff 排版（A4）排在開工文件之後的第一個 commit。現有程式有
 | T8 | 同時拿掉 ID 字元檢查和「ID 完全相同」的比對 | T8 變紅 |
 | T10 | 兩個入口改回優先採用 `payload["origin"]` | T10 的兩個入口都變紅；T11 仍是綠燈（它的 payload 沒有 origin） |
 | T11 | `_origin_from_url()` 直接回傳完整網址，不去掉路徑與查詢字串 | T10、T11 共 4 個測試全部變紅 |
+| T12 | 只拿掉 `_credential_file()` 的字元檢查 | T12 的 3 種寫法全部變紅，錯誤訊息顯示碰到了 `credentials\..\outside.bin` 與資料夾外的 `outside.bin`；T13 仍是綠燈 |
+| T13 | 只拿掉 `load()` 的 ID 比對 | T13 變紅（`DID NOT RAISE`）；T12 仍是綠燈 |
 
-每次檢查後都已改回正確的實作；`bridge.py` 改回後用 SHA-256 比對，和破壞前完全相同。
+每次檢查後都已改回正確的實作；`bridge.py`、`storage.py` 改回後用 SHA-256 比對，和破壞前完全相同。
 
 ### 設定類工作的驗收
 
@@ -313,11 +325,11 @@ ruff 排版（A4）排在開工文件之後的第一個 commit。現有程式有
 |---|---|---|
 | `_origin_from_url()` 的 docstring 理由寫錯。about:blank、about:srcdoc、blob: 頁面在瀏覽器中有 origin（沿用建立者或內層網址的），真正的理由是只看 frame.url 無法得知。「和瀏覽器算出的 origin 相同」也只對一般 http(s) 頁面成立，sandbox iframe 例外 | 必須修正 | 已更正。commit `de413e0` |
 | commit 版本的工作紀錄還沒有 T7–T11 的紅燈與破壞檢查結果 | 必須修正 | 已補在本段的「測試結果」「破壞檢查」 |
-| 字元檢查沒有測試保護：只拿掉它時 28 個測試全綠。T8 會被讀出後的比對擋下，但那時已經讀過資料夾外的檔案 | 建議（優先） | 提議 T12，見開工段落「追加工作 2」 |
-| CI 用 keyring 後端，假 keyring 區分大小寫，T7、T9 在 CI 上抓不到「ID 比對被拿掉」 | 建議 | 提議 T13；T7 的 docstring 已寫明這點（`de413e0`） |
+| 字元檢查沒有測試保護：只拿掉它時 28 個測試全綠。T8 會被讀出後的比對擋下，但那時已經讀過資料夾外的檔案 | 建議（優先） | 使用者核准 T12，已新增並做破壞檢查。commit `3486103` |
+| CI 用 keyring 後端，假 keyring 區分大小寫，T7、T9 在 CI 上抓不到「ID 比對被拿掉」 | 建議 | 使用者核准 T13，已新增並做破壞檢查（`3486103`）；T7 的 docstring 已寫明這點（`de413e0`） |
 | 註解不完整：假 authenticator 與 `_call_handler()` 缺說明、T11 沒寫依據、storage 把 ID 的來源說成只有 RP | 建議 | 已補齊。commit `de413e0` |
 | 開工段落「T7–T9 的問題來自 Windows 檔案系統不分大小寫」對 T8 不正確 | 建議 | 開工段落已加註更正 |
-| 注入腳本仍在 payload 放 origin，但 bridge 已經不用 | 建議（可選） | 待使用者決定 |
+| 注入腳本仍在 payload 放 origin，但 bridge 已經不用 | 建議（可選） | 使用者選擇刪除。commit `2ba3d1f` |
 | `__pqListCredentials` 沒有 origin 檢查；`delete()` 沒有確認 ID 完全相同；Extension 採用頁面傳來的 origin；crossOrigin 固定為 false | 建議（既有問題） | 記入待辦清單 |
 | 名詞表沒有 frame、binding | 建議 | 已新增。commit `c1bd1f0` |
 | `c0e3000` 的訊息只寫「T7–T11 與對齊紀錄」，實際上也加了第 1 次審查的完工段落與「更正」註記 | 輕微 | 在此說明，不改寫已 commit 的歷史 |

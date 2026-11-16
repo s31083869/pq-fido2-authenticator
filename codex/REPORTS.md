@@ -398,3 +398,6 @@ liboqs 編譯優化：
 51. 2026-11-16：RP 登入驗章改用收到的 clientDataJSON 原始 bytes 計算雜湊（WebAuthn §7.2），不再解析後重新序列化。
 52. 2026-11-16：Python authenticator 的 allowCredentials 只從清單中挑選屬於目前 rpId 的憑證，挑不到就拒絕（Phase-1 spec 6.2）。
 53. 2026-11-16：Python authenticator 缺少 origin 時直接回報錯誤，不自動填入預設值。
+54. 2026-11-16：Python authenticator 的 credential ID 必須完全相同才算同一張憑證。儲存層只接受 base64url 字元組成的 ID，讀出檔案後再比對檔案內記錄的 ID，避免 Windows 檔名不分大小寫、或 `../` 這類路徑讓清單以外的憑證被選中（WebAuthn §6.3.2、§6.3.3）。
+55. 2026-11-16：Python bridge 的 origin 改取自 Playwright 提供的呼叫者 frame 網址，只取協定、網域、埠，不再採用頁面在 payload 中自稱的值（WebAuthn §5.8.1：origin 由瀏覽器填入，網頁無法指定）。
+56. 2026-11-16：使用者決定 Day 1 最後三個 commit（`e19f74a`、`3486103`、`2ba3d1f`）例外，commit 前只跑 ruff 與新增的 T12、T13，全套測試交給 PR 上的 CI。`CLAUDE.md` 的通用規則不變。
