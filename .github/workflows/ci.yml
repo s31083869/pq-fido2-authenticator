@@ -1,0 +1,105 @@
+# 每次開 PR 或更新 PR 時，在乾淨的 Linux 機器上重跑專案守則（CLAUDE.md）規定的必跑檢查。
+# 三個工作分別對應 Python（RP 與 authenticator）、Chrome Extension、前端。
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  python:
+    name: Python（ruff、pytest）
+    runs-on: ubuntu-latest
+    env:
+      # 和本機一致：liboqs-python 0.14.1 對應的 liboqs 版本是 0.14.0
+      LIBOQS_VERSION: "0.14.0"
+    steps:
+      - uses: actions/checkout@v4
+
+      # 編譯 liboqs 需要幾分鐘，所以依版本快取安裝結果；版本不變就直接沿用
+      - name: 快取 liboqs
+        id: liboqs-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/_oqs
+          key: liboqs-${{ env.LIBOQS_VERSION }}-${{ runner.os }}
+
+      # 沒有快取時，用和 liboqs-python 自動安裝相同的參數，從官方 tag 編譯並安裝到 ~/_oqs
+      # （liboqs-python 預設就會到 ~/_oqs 找 liboqs，因此不必另外設定路徑）
+      - name: 編譯並安裝 liboqs
+        if: steps.liboqs-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$LIBOQS_VERSION" https://github.com/open-quantum-safe/liboqs /tmp/liboqs
+          cmake -S /tmp/liboqs -B /tmp/liboqs/build \
+            -DBUILD_SHARED_LIBS=ON \
+            -DOQS_BUILD_ONLY_LIB=ON \
+            -DOQS_ENABLE_SIG_STFL_LMS=ON \
+            -DOQS_ENABLE_SIG_STFL_XMSS=ON \
+            -DOQS_HAZARDOUS_EXPERIMENTAL_ENABLE_SIG_STFL_KEY_SIG_GEN=ON \
+            -DCMAKE_INSTALL_PREFIX="$HOME/_oqs"
+          cmake --build /tmp/liboqs/build --parallel 4
+          cmake --build /tmp/liboqs/build --target install
+
+      - uses: astral-sh/setup-uv@v6
+
+      # 依 uv.lock 安裝相依套件（含 dev 群組的 pytest、ruff）；--locked 確保鎖檔和 pyproject.toml 一致
+      - name: 安裝 Python 相依套件
+        run: uv sync --locked
+
+      - name: ruff check
+        run: uv run ruff check authenticator rp_server
+
+      - name: ruff format --check
+        run: uv run ruff format --check authenticator rp_server
+
+      # pyproject.toml 的 testpaths 已限定只收集專案自己的測試
+      - name: pytest
+        run: uv run pytest
+
+  extension:
+    name: Extension（bun test、typecheck）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - uses: actions/checkout@v4
+
+      # bun 版本和本機一致，避免鎖檔格式不同
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+
+      - name: 安裝相依套件
+        run: bun install --frozen-lockfile
+
+      - name: bun test
+        run: bun test src
+
+      - name: typecheck
+        run: bun run typecheck
+
+  frontend:
+    name: Frontend（bun test、eslint、tsc）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+
+      - name: 安裝相依套件
+        run: bun install --frozen-lockfile
+
+      - name: bun test
+        run: bun test src
+
+      - name: eslint
+        run: bun run lint
+
+      - name: tsc
+        run: bunx tsc --noEmit

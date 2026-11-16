@@ -16,12 +16,13 @@ class UserVerificationError(RuntimeError):
 
 
 class UserVerifier(Protocol):
-    def verify_user(self, prompt: str | None = None) -> bool:
-        ...
+    def verify_user(self, prompt: str | None = None) -> bool: ...
 
 
 class TouchIDVerifier:
-    def __init__(self, reason: str = "Authenticate with Touch ID", timeout: int = 30) -> None:
+    def __init__(
+        self, reason: str = "Authenticate with Touch ID", timeout: int = 30
+    ) -> None:
         self.reason = reason
         self.timeout = timeout
 
@@ -90,7 +91,9 @@ class WindowsHelloVerifier:
         def runner() -> None:
             try:
                 asyncio.run(self._verify_user_async(message))
-            except BaseException as exc:  # pragma: no cover - defensive event-loop bridge
+            except (
+                BaseException
+            ) as exc:  # pragma: no cover - defensive event-loop bridge
                 error_holder["error"] = exc
 
         thread = threading.Thread(target=runner, daemon=True)
@@ -126,7 +129,9 @@ class WindowsHelloVerifier:
                 timeout=self.timeout,
             )
         except asyncio.TimeoutError as exc:
-            raise UserVerificationError("Windows Hello timed out. Please try again.") from exc
+            raise UserVerificationError(
+                "Windows Hello timed out. Please try again."
+            ) from exc
         if not _enum_is(result, UserConsentVerificationResult, "verified"):
             raise UserVerificationError(
                 f"Windows Hello verification failed: {_enum_label(result)}"

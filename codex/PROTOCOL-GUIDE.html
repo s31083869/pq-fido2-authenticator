@@ -1,0 +1,1379 @@
+<meta charset="utf-8">
+<title>PQ-FIDO2 協議導覽</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap">
+<style>
+/* 版面概念：左側固定章節目錄＋右側長篇閱讀欄；流程圖與資料結構圖以較寬的圖框穿插在文字之間。
+   顏色代表角色：綠＝Authenticator（本頁主色）、藍＝前端與攔截層、橘＝RP Server。 */
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #e9eef3;
+  --fg: #15212d;
+  --muted: #586777;
+  --line: #d4dce4;
+  --line-strong: #9fb0c0;
+  --accent: #0a7563;
+  --accent-soft: #d5efe9;
+  --c-client: #3552c4;
+  --c-client-soft: #dfe5fb;
+  --c-rp: #a8530a;
+  --c-rp-soft: #f6e3d2;
+  --c-classic: #7b8794;
+  --font-display: "Noto Serif TC", "Source Han Serif TC", "PMingLiU", serif;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1318;
+    --surface: #141c23;
+    --surface-2: #1a242d;
+    --fg: #e2e8ee;
+    --muted: #98a7b5;
+    --line: #2a3742;
+    --line-strong: #4a5d6d;
+    --accent: #4ccdb1;
+    --accent-soft: #16352f;
+    --c-client: #93a6ff;
+    --c-client-soft: #1e2647;
+    --c-rp: #f0a35c;
+    --c-rp-soft: #3a2614;
+    --c-classic: #8c99a6;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1318;
+  --surface: #141c23;
+  --surface-2: #1a242d;
+  --fg: #e2e8ee;
+  --muted: #98a7b5;
+  --line: #2a3742;
+  --line-strong: #4a5d6d;
+  --accent: #4ccdb1;
+  --accent-soft: #16352f;
+  --c-client: #93a6ff;
+  --c-client-soft: #1e2647;
+  --c-rp: #f0a35c;
+  --c-rp-soft: #3a2614;
+  --c-classic: #8c99a6;
+  color-scheme: dark;
+}
+
+/* ===== 基本排版 ===== */
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.8;
+}
+.page {
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+.shell { max-width: 1180px; margin: 0 auto; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.35; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2rem, 4.2vw, 2.75rem); }
+h2 { font-size: 1.65rem; }
+h3 { font-size: 1.18rem; margin-top: 8px; }
+p { margin: 0; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible, li:focus-visible, input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+code, kbd { font-family: var(--font-mono); font-size: 0.86em; }
+:not(pre) > code {
+  background: var(--surface-2);
+  padding: 0.1em 0.38em;
+  border-radius: 4px;
+  overflow-wrap: anywhere;
+}
+pre {
+  margin: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+pre code { font-size: 0.85rem; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--font-mono); }
+
+/* ===== 頁首 ===== */
+.hero {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 32px;
+}
+.eyebrow {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+.lead { font-size: 1.12rem; max-width: 44em; color: var(--fg); }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 0.9rem; color: var(--muted); }
+.route {
+  max-width: 48em;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-size: 0.95rem;
+}
+.route strong { color: var(--accent); }
+
+/* ===== 兩欄版面：目錄＋正文 ===== */
+.layout { display: grid; gap: 40px; }
+@media (min-width: 1000px) {
+  .layout { grid-template-columns: 210px minmax(0, 1fr); gap: 56px; }
+  .toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; }
+}
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.toc a {
+  display: grid;
+  grid-template-columns: 1.8em 1fr;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.93rem;
+}
+.toc a:hover { color: var(--fg); background: var(--surface-2); }
+.toc a.is-current { color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+.toc .n { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.toc-title { font-size: 0.82rem; font-weight: 700; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 8px; }
+@media (max-width: 999px) {
+  .toc { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .toc ol { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+main { min-width: 0; display: grid; gap: 64px; }
+section { display: grid; gap: 18px; min-width: 0; scroll-margin-top: 24px; }
+.prose { display: grid; gap: 14px; max-width: 42em; }
+.prose ol, .prose ul { margin: 0; padding-left: 1.4em; display: grid; gap: 6px; }
+.ch-head { display: flex; align-items: baseline; gap: 14px; }
+.ch-num {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  min-width: 2.1em;
+  text-align: center;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== 重點框（不用彩色側邊條，改用標籤） ===== */
+.note {
+  max-width: 42em;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 14px 18px;
+  display: grid;
+  gap: 6px;
+}
+.note-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+/* ===== 角色標籤 ===== */
+.actor { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.actor::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+.actor.rp { color: var(--c-rp); }
+.actor.client { color: var(--c-client); }
+.actor.auth { color: var(--accent); }
+
+/* ===== 三張概念卡 ===== */
+.cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+.card h3 { margin: 0; }
+.formula { font-family: var(--font-mono); font-size: 0.82rem; color: var(--muted); line-height: 1.7; }
+
+/* ===== 定義清單（角色與識別） ===== */
+.defs { display: grid; gap: 10px; max-width: 46em; margin: 0; }
+.defs > div { display: grid; grid-template-columns: minmax(8.5em, auto) 1fr; gap: 4px 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.defs dt { font-weight: 700; }
+.defs dd { margin: 0; }
+@media (max-width: 560px) { .defs > div { grid-template-columns: 1fr; } }
+
+/* ===== 圖 ===== */
+figure { margin: 0; display: grid; gap: 10px; min-width: 0; }
+.fig-frame {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  overflow-x: auto;
+}
+.fig-frame svg { display: block; width: 100%; height: auto; min-width: 720px; }
+figcaption { font-size: 0.9rem; color: var(--muted); max-width: 46em; }
+figcaption strong { color: var(--fg); }
+
+/* SVG 的顏色全部取自主題變數，深淺色都能閱讀 */
+.svg-region { fill: none; stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 5 5; }
+.svg-region-label { fill: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: 0.06em; }
+.svg-box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; }
+.svg-box.rp { stroke: var(--c-rp); fill: var(--c-rp-soft); }
+.svg-box.client { stroke: var(--c-client); fill: var(--c-client-soft); }
+.svg-box.auth { stroke: var(--accent); fill: var(--accent-soft); }
+.svg-title { fill: var(--fg); font-size: 14px; font-weight: 700; }
+.svg-sub { fill: var(--muted); font-size: 11.5px; }
+.svg-label { fill: var(--fg); font-size: 12px; }
+.svg-arrow { stroke: var(--fg); stroke-width: 1.4; fill: none; }
+.svg-head { fill: var(--fg); }
+.svg-head-on { fill: var(--accent); }
+.svg-life { stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 4 5; }
+.svg-step-box { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.4; }
+.svg-bracket { stroke: var(--muted); stroke-width: 1.2; fill: none; }
+
+/* 流程圖中目前選取的步驟：箭頭與文字改成主色並加粗 */
+.seq g[data-step] .svg-label { transition: fill 0.15s; }
+.seq g[data-step].is-active .svg-arrow { stroke: var(--accent); stroke-width: 2.6; }
+.seq g[data-step].is-active .svg-label { fill: var(--accent); font-weight: 700; }
+.seq g[data-step].is-active .svg-step-box { stroke: var(--accent); stroke-width: 2.6; fill: var(--accent-soft); }
+
+/* ===== 流程步驟清單＋控制列 ===== */
+.ceremony { display: grid; gap: 16px; }
+.stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.stepper button, .copy-btn {
+  font: inherit;
+  font-size: 0.9rem;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 4px 14px;
+  cursor: pointer;
+}
+.stepper button:hover, .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+.step-count { font-size: 0.9rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-width: 48em; }
+.steps li {
+  display: grid;
+  grid-template-columns: 2.2em minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.steps li.is-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.steps .num {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  padding-top: 1px;
+}
+.steps .who { font-size: 0.85rem; }
+.steps .body { display: grid; gap: 4px; min-width: 0; }
+.steps .where { font-size: 0.85rem; color: var(--muted); }
+
+/* ===== 表格 ===== */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.93rem; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--surface-2); font-weight: 700; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 10px;
+  white-space: nowrap;
+}
+.pill.done { background: var(--accent-soft); color: var(--accent); }
+.pill.wip { background: var(--c-client-soft); color: var(--c-client); }
+.pill.off { background: var(--surface-2); color: var(--muted); }
+
+/* ===== authenticatorData 欄位圖 ===== */
+.byte-strip { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg {
+  font: inherit;
+  flex: var(--w) 1 0;
+  min-width: 96px;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  color: var(--fg);
+}
+.seg.head { background: var(--accent-soft); border-color: var(--accent); }
+.seg.att { background: var(--c-client-soft); border-color: var(--c-client); }
+.seg .seg-name { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600; overflow-wrap: anywhere; }
+.seg .seg-range { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); }
+.seg.is-active { box-shadow: 0 0 0 2px var(--fg); }
+tr[data-field].is-active td { background: var(--accent-soft); }
+.strip-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.85rem; color: var(--muted); }
+.swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+.swatch.head { background: var(--accent-soft); border: 1px solid var(--accent); }
+.swatch.att { background: var(--c-client-soft); border: 1px solid var(--c-client); }
+
+/* ===== 簽章大小長條圖（寬度依實際 bytes 等比例） ===== */
+.bars { display: grid; gap: 8px; max-width: 46em; }
+.bar-row { display: grid; grid-template-columns: 9.5em minmax(0, 1fr) 6.5em; align-items: center; gap: 12px; font-size: 0.9rem; }
+.bar-track { height: 14px; background: var(--surface-2); border-radius: 4px; }
+.bar-fill { height: 100%; border-radius: 4px; min-width: 2px; }
+.bar-fill.classic { background: var(--c-classic); }
+.bar-fill.fn { background: var(--c-client); }
+.bar-fill.ml { background: var(--accent); }
+.bar-val { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); font-size: 0.82rem; }
+@media (max-width: 560px) { .bar-row { grid-template-columns: 7.5em minmax(0, 1fr) 5.2em; gap: 8px; } }
+
+/* ===== 雙欄比較 ===== */
+.two-col { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+/* ===== 程式碼地圖 ===== */
+.codemap { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.codemap .card ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 0.92rem; }
+.codemap .card li { display: grid; gap: 1px; }
+.codemap .path { font-family: var(--font-mono); font-size: 0.82rem; font-weight: 600; overflow-wrap: anywhere; }
+
+/* ===== 指令區塊 ===== */
+.cmds { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; max-width: 48em; counter-reset: cmd; }
+.cmds > li { display: grid; gap: 8px; }
+.cmd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.copy-btn { padding: 6px 12px; }
+
+/* ===== 名詞表 ===== */
+.search { display: grid; gap: 6px; max-width: 32em; }
+.search label { font-size: 0.9rem; font-weight: 700; }
+.search input {
+  font: inherit;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--fg);
+}
+.term-group { display: grid; gap: 8px; }
+.term-group h3 { font-size: 1.02rem; color: var(--muted); font-family: var(--font-body); letter-spacing: 0.04em; }
+.terms { display: grid; gap: 0; margin: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.term { display: grid; grid-template-columns: minmax(10em, 15em) 1fr; gap: 4px 18px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.term:last-child { border-bottom: none; }
+.term dt { font-weight: 700; overflow-wrap: anywhere; }
+.term dd { margin: 0; }
+@media (max-width: 600px) { .term { grid-template-columns: 1fr; } }
+
+/* ===== 常見問題 ===== */
+.faq { display: grid; gap: 10px; max-width: 46em; }
+.faq details { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+.faq summary { cursor: pointer; font-weight: 700; }
+.faq details p { margin-top: 8px; }
+
+.refs { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 46em; }
+footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 0.88rem; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; }
+}
+</style>
+
+<div class="page">
+<div class="shell">
+
+<header class="hero">
+  <div class="eyebrow">給新成員的入門導覽</div>
+  <h1>PQ-FIDO2 協議導覽</h1>
+  <p class="lead">這個專案把網站免密碼登入（WebAuthn／passkey）裡的數位簽章，換成量子電腦也破解不了的後量子演算法。這份導覽從零開始，帶你看懂登入協議怎麼運作、我們改了哪裡、程式碼放在哪裡。</p>
+  <div class="meta">
+    <span>適合：第一次接觸本專案的人</span>
+    <span>閱讀時間：約 30 分鐘</span>
+    <span>最後更新：2026-11-16</span>
+  </div>
+  <div class="route"><strong>建議閱讀順序</strong>：先讀第 1–5 章掌握整體流程，再讀第 6–7 章看資料格式與演算法細節，第 8–9 章對照程式碼並實際跑一次。遇到看不懂的詞，到第 11 章的名詞表查。</div>
+</header>
+
+<div class="layout">
+
+<nav class="toc" aria-label="章節目錄">
+  <div class="toc-title">目錄</div>
+  <ol>
+    <li><a href="#overview"><span class="n">1</span><span>這個專案在做什麼</span></a></li>
+    <li><a href="#basics"><span class="n">2</span><span>三個密碼學概念</span></a></li>
+    <li><a href="#roles"><span class="n">3</span><span>WebAuthn 的角色</span></a></li>
+    <li><a href="#register"><span class="n">4</span><span>註冊流程</span></a></li>
+    <li><a href="#login"><span class="n">5</span><span>登入流程</span></a></li>
+    <li><a href="#structures"><span class="n">6</span><span>資料結構拆解</span></a></li>
+    <li><a href="#pqc"><span class="n">7</span><span>後量子演算法</span></a></li>
+    <li><a href="#codemap"><span class="n">8</span><span>程式碼地圖</span></a></li>
+    <li><a href="#quickstart"><span class="n">9</span><span>動手跑一次</span></a></li>
+    <li><a href="#status"><span class="n">10</span><span>目前進度</span></a></li>
+    <li><a href="#glossary"><span class="n">11</span><span>名詞表</span></a></li>
+    <li><a href="#faq"><span class="n">12</span><span>常見問題</span></a></li>
+    <li><a href="#references"><span class="n">—</span><span>參考資料</span></a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ============ 1 ============ -->
+<section id="overview">
+  <div class="ch-head"><span class="ch-num">1</span><h2>這個專案在做什麼</h2></div>
+  <div class="prose">
+    <p>現在很多網站都支援 passkey：用手機、指紋或 Windows Hello 登入，不必輸入密碼。背後的標準叫 <strong>WebAuthn</strong>，是 FIDO2 規範的一部分。它的核心是<strong>數位簽章</strong>：你的裝置保管一把私鑰，網站只保存對應的公鑰；每次登入時，裝置對網站出的題目簽章，網站再用公鑰驗證。</p>
+    <p>目前 passkey 最常用的簽章演算法是 ES256（ECDSA 搭配 P-256 橢圓曲線）。足夠大的量子電腦可以用 Shor 演算法，從公鑰推算出私鑰，到時候任何人都能冒充你登入。NIST 已經公告，這類會被量子電腦破解的演算法，將在 2035 年前從 NIST 標準中移除。</p>
+    <p>本專案是一個研究性質的原型（PoC），要證明 WebAuthn 可以改用<strong>後量子簽章演算法</strong>。目前已經完成 ML-DSA（NIST FIPS 204），正在加入 FN-DSA（以 Falcon 演算法為基礎）。</p>
+  </div>
+  <div class="note">
+    <div class="note-label">我們的做法</div>
+    <p>我們不修改瀏覽器，也不修改 WebAuthn 的資料格式。網頁照常呼叫瀏覽器的 <code>navigator.credentials</code> API，我們在中間<strong>攔截</strong>這個呼叫，交給自己寫的軟體 authenticator 處理。網站後端（RP Server）也是自己寫的，所以雙方都認得新的演算法編號。</p>
+  </div>
+  <figure>
+    <div class="fig-frame">
+      <svg viewBox="0 0 860 340" role="img" aria-label="系統架構：前端網頁透過 HTTP 和 RP Server 溝通；呼叫 navigator.credentials 時，攔截層把請求交給 Authenticator，Authenticator 讀寫使用者裝置上的私鑰；RP Server 把公鑰存進 SQLite。">
+        <defs>
+          <marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="svg-head"/>
+          </marker>
+        </defs>
+        <rect class="svg-region" x="12" y="28" width="224" height="300" rx="14"/>
+        <text class="svg-region-label" x="28" y="52">網站後端</text>
+        <rect class="svg-region" x="300" y="28" width="548" height="300" rx="14"/>
+        <text class="svg-region-label" x="316" y="52">使用者這一側（瀏覽器與裝置）</text>
+
+        <rect class="svg-box rp" x="26" y="78" width="190" height="78" rx="10"/>
+        <text class="svg-title" x="121" y="104" text-anchor="middle">RP Server</text>
+        <text class="svg-sub" x="121" y="124" text-anchor="middle">Flask · localhost:5005</text>
+        <text class="svg-sub" x="121" y="142" text-anchor="middle">出題目、驗簽章</text>
+
+        <rect class="svg-box rp" x="26" y="226" width="190" height="78" rx="10"/>
+        <text class="svg-title" x="121" y="252" text-anchor="middle">SQLite 資料庫</text>
+        <text class="svg-sub" x="121" y="272" text-anchor="middle">rp_server/data/rp.db</text>
+        <text class="svg-sub" x="121" y="290" text-anchor="middle">公鑰、演算法、signCount</text>
+
+        <rect class="svg-box client" x="322" y="78" width="190" height="78" rx="10"/>
+        <text class="svg-title" x="417" y="104" text-anchor="middle">前端網頁</text>
+        <text class="svg-sub" x="417" y="124" text-anchor="middle">Next.js · localhost:3000</text>
+        <text class="svg-sub" x="417" y="142" text-anchor="middle">註冊、登入頁面</text>
+
+        <rect class="svg-box client" x="638" y="78" width="190" height="78" rx="10"/>
+        <text class="svg-title" x="733" y="104" text-anchor="middle">攔截層</text>
+        <text class="svg-sub" x="733" y="124" text-anchor="middle">改寫 navigator.credentials</text>
+        <text class="svg-sub" x="733" y="142" text-anchor="middle">兩種實作，見第 8 章</text>
+
+        <rect class="svg-box auth" x="638" y="226" width="190" height="78" rx="10"/>
+        <text class="svg-title" x="733" y="252" text-anchor="middle">Authenticator</text>
+        <text class="svg-sub" x="733" y="272" text-anchor="middle">選演算法、產生金鑰、簽章</text>
+        <text class="svg-sub" x="733" y="290" text-anchor="middle">密碼學：liboqs</text>
+
+        <rect class="svg-box auth" x="322" y="226" width="190" height="78" rx="10"/>
+        <text class="svg-title" x="417" y="252" text-anchor="middle">私鑰儲存</text>
+        <text class="svg-sub" x="417" y="272" text-anchor="middle">只存在使用者裝置</text>
+        <text class="svg-sub" x="417" y="290" text-anchor="middle">Windows 用 DPAPI 加密</text>
+
+        <line class="svg-arrow" x1="219" y1="117" x2="319" y2="117" marker-start="url(#arch-arrow)" marker-end="url(#arch-arrow)"/>
+        <text class="svg-label" x="268" y="108" text-anchor="middle">HTTP JSON</text>
+
+        <line class="svg-arrow" x1="515" y1="117" x2="635" y2="117" marker-start="url(#arch-arrow)" marker-end="url(#arch-arrow)"/>
+        <text class="svg-label" x="575" y="108" text-anchor="middle">create()／get()</text>
+
+        <line class="svg-arrow" x1="733" y1="159" x2="733" y2="223" marker-start="url(#arch-arrow)" marker-end="url(#arch-arrow)"/>
+        <text class="svg-label" x="743" y="195">轉交請求、回傳結果</text>
+
+        <line class="svg-arrow" x1="635" y1="265" x2="515" y2="265" marker-end="url(#arch-arrow)"/>
+        <text class="svg-label" x="575" y="256" text-anchor="middle">保存／讀取私鑰</text>
+
+        <line class="svg-arrow" x1="121" y1="159" x2="121" y2="223" marker-end="url(#arch-arrow)"/>
+        <text class="svg-label" x="131" y="195">存取憑證</text>
+      </svg>
+    </div>
+    <figcaption><strong>圖 1｜四個元件的關係。</strong>網頁先透過 HTTP 向 RP 拿題目；呼叫 <code>navigator.credentials</code> 時，攔截層把請求交給我們的 authenticator 簽章，結果再經由網頁送回 RP 驗證。私鑰只存在使用者這一側。</figcaption>
+  </figure>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="basics">
+  <div class="ch-head"><span class="ch-num">2</span><h2>先備知識：三個密碼學概念</h2></div>
+  <div class="prose"><p>整個協議只建立在三個概念上，先把它們弄懂，後面的流程就很好理解。</p></div>
+  <div class="cards">
+    <div class="card">
+      <h3>數位簽章</h3>
+      <p>一對金鑰：<strong>私鑰</strong>用來簽、<strong>公鑰</strong>用來驗。只有持有私鑰的人，才簽得出能通過驗證的簽章。網站拿著公鑰可以確認「真的是你」，卻沒辦法冒充你。</p>
+      <div class="formula">sign(私鑰, 訊息) → 簽章<br>verify(公鑰, 訊息, 簽章) → 對／錯</div>
+    </div>
+    <div class="card">
+      <h3>雜湊（SHA-256）</h3>
+      <p>把任意長度的資料壓成 32 bytes 的「指紋」。原始資料只要改一個 byte，指紋就完全不同，而且無法從指紋反推原文。WebAuthn 用它把要簽的內容縮短成固定長度。</p>
+      <div class="formula">SHA-256("localhost")<br>→ 49960de5…831d9763</div>
+    </div>
+    <div class="card">
+      <h3>挑戰-回應</h3>
+      <p>每次登入，網站都會出一道隨機的題目，稱為 <strong>challenge</strong>。裝置把題目一起簽進去，所以就算有人錄下舊的簽章重送，也會因為題目不同而失敗。這叫做防止<strong>重放攻擊</strong>。</p>
+      <div class="formula">RP：出題 challenge<br>裝置：簽 challenge ＋ 其他資料</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="roles">
+  <div class="ch-head"><span class="ch-num">3</span><h2>WebAuthn 的角色</h2></div>
+  <div class="prose"><p>WebAuthn 把一次註冊或登入稱為一場<strong>儀式（ceremony）</strong>，參與的角色如下。後面的流程圖都用同樣的顏色代表同一個角色。</p></div>
+  <dl class="defs">
+    <div><dt>使用者</dt><dd>按下註冊或登入，並通過指紋或 Windows Hello 驗證。</dd></div>
+    <div><dt><span class="actor client">前端網頁</span></dt><dd>網站在瀏覽器裡執行的 JavaScript。它呼叫瀏覽器提供的 <code>navigator.credentials.create()</code>（註冊）與 <code>navigator.credentials.get()</code>（登入）。本專案是 <code>frontend/</code>。</dd></div>
+    <div><dt><span class="actor client">瀏覽器／攔截層</span></dt><dd>正常情況下，瀏覽器負責把網頁的請求轉給 authenticator，並填入 origin。本專案由攔截層改寫這兩個 API，把請求轉給我們自己的 authenticator。填入 origin 的工作也由攔截層接手：Python bridge 和瀏覽器一樣，從呼叫者頁面的真實網址取出 origin，不採用頁面自己傳來的值；Extension 目前仍使用頁面傳來的值，但只接受 demo.yubico.com 的頁面。</dd></div>
+    <div><dt><span class="actor auth">Authenticator</span></dt><dd>認證器：產生並保管私鑰、執行簽章。一般是 YubiKey、手機或 Windows Hello；本專案是軟體版，支援後量子演算法。</dd></div>
+    <div><dt><span class="actor rp">RP Server</span></dt><dd>Relying Party（依賴方），也就是網站後端：負責出題目、驗證結果、保存公鑰。本專案是 <code>rp_server/</code>。</dd></div>
+  </dl>
+  <div class="prose"><h3>兩個用來辨識網站的值</h3></div>
+  <dl class="defs">
+    <div><dt>rpId</dt><dd>網站的識別名稱，通常就是網域，本專案是 <code>localhost</code>。authenticator 會把 SHA-256(rpId) 放進簽章資料，證明這個簽章是給哪個網站的。</dd></div>
+    <div><dt>origin</dt><dd>網頁的完整來源，由協定、網域、埠組成，例如 <code>http://localhost:3000</code>。它會寫進 clientDataJSON，RP 會檢查它是不是自己的網站，防止釣魚網站把請求轉送過來。</dd></div>
+  </dl>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="register">
+  <div class="ch-head"><span class="ch-num">4</span><h2>註冊流程：建立一把新的金鑰</h2></div>
+  <div class="prose"><p>註冊的目的，是讓 authenticator 產生一對新的金鑰，並把公鑰交給 RP 保存。點選下方的步驟，或按「下一步」，圖上會標出對應的箭頭。</p></div>
+  <div class="ceremony" data-ceremony="register">
+    <figure class="seq">
+      <div class="fig-frame">
+        <svg viewBox="0 0 860 580" role="img" aria-label="註冊流程循序圖：前端向 RP 取得 options，呼叫 navigator.credentials.create，攔截層轉給 Authenticator 產生金鑰並回傳 attestationObject，前端再送到 RP 驗證並保存公鑰。">
+          <defs>
+            <marker id="reg-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" class="svg-head"/>
+            </marker>
+            <marker id="reg-arrow-on" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" class="svg-head-on"/>
+            </marker>
+          </defs>
+          <rect class="svg-box rp" x="22" y="12" width="176" height="52" rx="8"/>
+          <text class="svg-title" x="110" y="35" text-anchor="middle">RP Server</text>
+          <text class="svg-sub" x="110" y="53" text-anchor="middle">rp_server/</text>
+          <rect class="svg-box client" x="242" y="12" width="176" height="52" rx="8"/>
+          <text class="svg-title" x="330" y="35" text-anchor="middle">前端網頁</text>
+          <text class="svg-sub" x="330" y="53" text-anchor="middle">frontend/</text>
+          <rect class="svg-box client" x="462" y="12" width="176" height="52" rx="8"/>
+          <text class="svg-title" x="550" y="35" text-anchor="middle">攔截層</text>
+          <text class="svg-sub" x="550" y="53" text-anchor="middle">bridge.py／injected</text>
+          <rect class="svg-box auth" x="672" y="12" width="176" height="52" rx="8"/>
+          <text class="svg-title" x="760" y="35" text-anchor="middle">Authenticator</text>
+          <text class="svg-sub" x="760" y="53" text-anchor="middle">service.py／background</text>
+
+          <line class="svg-life" x1="110" y1="64" x2="110" y2="570"/>
+          <line class="svg-life" x1="330" y1="64" x2="330" y2="570"/>
+          <line class="svg-life" x1="550" y1="64" x2="550" y2="570"/>
+          <line class="svg-life" x1="760" y1="64" x2="760" y2="570"/>
+
+          <g data-step="1">
+            <line class="svg-arrow" x1="328" y1="108" x2="113" y2="108" marker-end="url(#reg-arrow)"/>
+            <text class="svg-label" x="220" y="99" text-anchor="middle">1 · POST /register/options</text>
+          </g>
+          <g data-step="2">
+            <line class="svg-arrow" x1="112" y1="166" x2="327" y2="166" marker-end="url(#reg-arrow)"/>
+            <text class="svg-label" x="220" y="157" text-anchor="middle">2 · challenge、pubKeyCredParams</text>
+          </g>
+          <g data-step="3">
+            <line class="svg-arrow" x1="332" y1="224" x2="547" y2="224" marker-end="url(#reg-arrow)"/>
+            <text class="svg-label" x="440" y="215" text-anchor="middle">3 · credentials.create()</text>
+          </g>
+          <g data-step="4">
+            <line class="svg-arrow" x1="552" y1="282" x2="757" y2="282" marker-end="url(#reg-arrow)"/>
+            <text class="svg-label" x="655" y="273" text-anchor="middle">4 · 轉成 JSON 交給 authenticator</text>
+          </g>
+          <g data-step="5">
+            <rect class="svg-step-box" x="670" y="318" width="180" height="52" rx="8"/>
+            <text class="svg-label" x="760" y="339" text-anchor="middle">5 · 驗證使用者、選演算法</text>
+            <text class="svg-label" x="760" y="358" text-anchor="middle">產生金鑰對、保存私鑰</text>
+          </g>
+          <g data-step="6">
+            <line class="svg-arrow" x1="758" y1="412" x2="333" y2="412" marker-end="url(#reg-arrow)"/>
+            <text class="svg-label" x="545" y="403" text-anchor="middle">6 · clientDataJSON ＋ attestationObject</text>
+          </g>
+          <g data-step="7">
+            <line class="svg-arrow" x1="328" y1="470" x2="113" y2="470" marker-end="url(#reg-arrow)"/>
+            <text class="svg-label" x="220" y="461" text-anchor="middle">7 · POST /register/verify</text>
+          </g>
+          <g data-step="8">
+            <rect class="svg-step-box" x="20" y="506" width="180" height="52" rx="8"/>
+            <text class="svg-label" x="110" y="527" text-anchor="middle">8 · 檢查題目、origin、rpId</text>
+            <text class="svg-label" x="110" y="546" text-anchor="middle">存下公鑰與演算法</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption><strong>圖 2｜註冊流程。</strong>每一列是一個步驟，箭頭方向就是資料流動的方向；第 5、8 步是在同一個角色內部完成的處理。</figcaption>
+    </figure>
+    <div class="stepper">
+      <button type="button" data-action="prev">上一步</button>
+      <button type="button" data-action="next">下一步</button>
+      <span class="step-count" aria-live="polite">第 1 步，共 8 步</span>
+    </div>
+    <ol class="steps">
+      <li data-step="1" tabindex="0"><span class="num">1</span><div class="body"><span class="who actor client">前端網頁 → RP</span><p>使用者在註冊頁輸入帳號和顯示名稱，前端呼叫 RP 的 <code>POST /register/options</code>。</p><span class="where">程式：frontend/src/pages/index.tsx</span></div></li>
+      <li data-step="2" tabindex="0"><span class="num">2</span><div class="body"><span class="who actor rp">RP → 前端網頁</span><p>RP 產生 32 bytes 的隨機 challenge 並暫存起來，回傳註冊參數：<code>rp</code>（網站 id 與名稱）、<code>user</code>（使用者的隨機 user handle）、<code>pubKeyCredParams</code>（RP 接受的演算法，預設依序為 -49、-48、-50）、<code>excludeCredentials</code>（這個帳號已有的憑證，避免重複註冊）。</p><span class="where">程式：rp_server/app.py 的 register_options()</span></div></li>
+      <li data-step="3" tabindex="0"><span class="num">3</span><div class="body"><span class="who actor client">前端網頁 → 攔截層</span><p>前端把 base64url 字串轉回 bytes，依使用者選的演算法調整清單順序，然後呼叫 <code>navigator.credentials.create({ publicKey })</code>。</p><span class="where">程式：frontend/src/pages/index.tsx</span></div></li>
+      <li data-step="4" tabindex="0"><span class="num">4</span><div class="body"><span class="who actor client">攔截層 → Authenticator</span><p>這個 API 已經被攔截層改寫過：它把請求裡的二進位欄位轉成 base64url 字串，再交給我們的 authenticator。</p><span class="where">程式：authenticator/bridge.py（Python bridge）、extension/src/injected/（Extension）</span></div></li>
+      <li data-step="5" tabindex="0"><span class="num">5</span><div class="body"><span class="who actor auth">Authenticator 內部</span><p>依序完成：確認 rpId 和 origin 的網域一致 → 使用者驗證（Windows Hello）→ 檢查 excludeCredentials → 照 pubKeyCredParams 的順序，選第一個自己支援的演算法 → 用 liboqs 產生金鑰對 → 產生 32 bytes 的隨機 credential ID → 保存私鑰。</p><span class="where">程式：authenticator/service.py 的 make_credential()</span></div></li>
+      <li data-step="6" tabindex="0"><span class="num">6</span><div class="body"><span class="who actor auth">Authenticator → 前端網頁</span><p>回傳三樣東西：<code>clientDataJSON</code>（type 為 <code>webauthn.create</code>，加上 challenge 和 origin）、<code>authenticatorData</code>（內含 credential ID 與 COSE 格式的公鑰），以及把 authenticatorData 包成 CBOR 的 <code>attestationObject</code>（fmt 為 <code>none</code>）。</p><span class="where">程式：authenticator/webauthn.py</span></div></li>
+      <li data-step="7" tabindex="0"><span class="num">7</span><div class="body"><span class="who actor client">前端網頁 → RP</span><p>前端把結果轉成 base64url，送到 <code>POST /register/verify</code>。</p><span class="where">程式：frontend/src/lib/webauthn.ts 的 serializeAttestation()</span></div></li>
+      <li data-step="8" tabindex="0"><span class="num">8</span><div class="body"><span class="who actor rp">RP 內部</span><p>逐項檢查：type 是 <code>webauthn.create</code>、challenge 是剛才發出的那一個、origin 是自己的網站、authenticatorData 開頭的 rpIdHash 等於 SHA-256(rpId)、演算法在 <code>hosted_algorithms</code> 裡。全部通過後，把 credential ID、公鑰、演算法和 signCount = 0 存進資料庫。</p><span class="where">程式：rp_server/services.py 的 verify_registration_payload()</span></div></li>
+    </ol>
+  </div>
+  <div class="note">
+    <div class="note-label">為什麼註冊時沒有驗簽章？</div>
+    <p>本專案的 attestation 格式固定為 <code>none</code>，也就是 authenticator 不提供「自己是哪個廠牌型號」的證明，所以註冊時沒有可以驗證的簽章。RP 靠 challenge、origin、rpIdHash 確認這份資料屬於剛才這次註冊；之後每次登入，都必須用這把公鑰驗章成功才會通過。</p>
+  </div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="login">
+  <div class="ch-head"><span class="ch-num">5</span><h2>登入流程：用私鑰簽章證明身分</h2></div>
+  <div class="prose"><p>登入時，authenticator 用註冊時產生的私鑰，對 RP 的題目簽章；RP 用資料庫裡的公鑰驗證。角色和註冊時一樣，差別在於資料內容。</p></div>
+  <div class="ceremony" data-ceremony="login">
+    <figure class="seq">
+      <div class="fig-frame">
+        <svg viewBox="0 0 860 580" role="img" aria-label="登入流程循序圖：前端向 RP 取得 challenge 與 allowCredentials，呼叫 navigator.credentials.get，Authenticator 挑選憑證並簽章，前端把簽章送到 RP，RP 用資料庫中的公鑰驗章。">
+          <defs>
+            <marker id="login-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" class="svg-head"/>
+            </marker>
+          </defs>
+          <rect class="svg-box rp" x="22" y="12" width="176" height="52" rx="8"/>
+          <text class="svg-title" x="110" y="35" text-anchor="middle">RP Server</text>
+          <text class="svg-sub" x="110" y="53" text-anchor="middle">rp_server/</text>
+          <rect class="svg-box client" x="242" y="12" width="176" height="52" rx="8"/>
+          <text class="svg-title" x="330" y="35" text-anchor="middle">前端網頁</text>
+          <text class="svg-sub" x="330" y="53" text-anchor="middle">frontend/</text>
+          <rect class="svg-box client" x="462" y="12" width="176" height="52" rx="8"/>
+          <text class="svg-title" x="550" y="35" text-anchor="middle">攔截層</text>
+          <text class="svg-sub" x="550" y="53" text-anchor="middle">bridge.py／injected</text>
+          <rect class="svg-box auth" x="672" y="12" width="176" height="52" rx="8"/>
+          <text class="svg-title" x="760" y="35" text-anchor="middle">Authenticator</text>
+          <text class="svg-sub" x="760" y="53" text-anchor="middle">service.py／background</text>
+
+          <line class="svg-life" x1="110" y1="64" x2="110" y2="570"/>
+          <line class="svg-life" x1="330" y1="64" x2="330" y2="570"/>
+          <line class="svg-life" x1="550" y1="64" x2="550" y2="570"/>
+          <line class="svg-life" x1="760" y1="64" x2="760" y2="570"/>
+
+          <g data-step="1">
+            <line class="svg-arrow" x1="328" y1="108" x2="113" y2="108" marker-end="url(#login-arrow)"/>
+            <text class="svg-label" x="220" y="99" text-anchor="middle">1 · POST /authenticate/options</text>
+          </g>
+          <g data-step="2">
+            <line class="svg-arrow" x1="112" y1="166" x2="327" y2="166" marker-end="url(#login-arrow)"/>
+            <text class="svg-label" x="220" y="157" text-anchor="middle">2 · challenge、allowCredentials</text>
+          </g>
+          <g data-step="3">
+            <line class="svg-arrow" x1="332" y1="224" x2="547" y2="224" marker-end="url(#login-arrow)"/>
+            <text class="svg-label" x="440" y="215" text-anchor="middle">3 · credentials.get()</text>
+          </g>
+          <g data-step="4">
+            <line class="svg-arrow" x1="552" y1="282" x2="757" y2="282" marker-end="url(#login-arrow)"/>
+            <text class="svg-label" x="655" y="273" text-anchor="middle">4 · 轉成 JSON 交給 authenticator</text>
+          </g>
+          <g data-step="5">
+            <rect class="svg-step-box" x="670" y="318" width="180" height="52" rx="8"/>
+            <text class="svg-label" x="760" y="339" text-anchor="middle">5 · 驗證使用者、挑選憑證</text>
+            <text class="svg-label" x="760" y="358" text-anchor="middle">signCount＋1、簽章</text>
+          </g>
+          <g data-step="6">
+            <line class="svg-arrow" x1="758" y1="412" x2="333" y2="412" marker-end="url(#login-arrow)"/>
+            <text class="svg-label" x="545" y="403" text-anchor="middle">6 · clientDataJSON、authData、signature</text>
+          </g>
+          <g data-step="7">
+            <line class="svg-arrow" x1="328" y1="470" x2="113" y2="470" marker-end="url(#login-arrow)"/>
+            <text class="svg-label" x="220" y="461" text-anchor="middle">7 · POST /authenticate/verify</text>
+          </g>
+          <g data-step="8">
+            <rect class="svg-step-box" x="20" y="506" width="180" height="52" rx="8"/>
+            <text class="svg-label" x="110" y="527" text-anchor="middle">8 · 用資料庫的公鑰驗章</text>
+            <text class="svg-label" x="110" y="546" text-anchor="middle">更新 signCount</text>
+          </g>
+        </svg>
+      </div>
+      <figcaption><strong>圖 3｜登入流程。</strong>和註冊的路徑完全相同，差在第 5 步會簽章，第 8 步會驗章。</figcaption>
+    </figure>
+    <div class="stepper">
+      <button type="button" data-action="prev">上一步</button>
+      <button type="button" data-action="next">下一步</button>
+      <span class="step-count" aria-live="polite">第 1 步，共 8 步</span>
+    </div>
+    <ol class="steps">
+      <li data-step="1" tabindex="0"><span class="num">1</span><div class="body"><span class="who actor client">前端網頁 → RP</span><p>使用者輸入帳號，前端呼叫 <code>POST /authenticate/options</code>。</p><span class="where">程式：frontend/src/pages/index.tsx</span></div></li>
+      <li data-step="2" tabindex="0"><span class="num">2</span><div class="body"><span class="who actor rp">RP → 前端網頁</span><p>RP 找出這個帳號的所有憑證，產生新的 challenge，回傳 <code>rpId</code> 與 <code>allowCredentials</code>（可以使用的 credential ID 清單）。</p><span class="where">程式：rp_server/app.py 的 authenticate_options()</span></div></li>
+      <li data-step="3" tabindex="0"><span class="num">3</span><div class="body"><span class="who actor client">前端網頁 → 攔截層</span><p>前端呼叫 <code>navigator.credentials.get({ publicKey })</code>。</p></div></li>
+      <li data-step="4" tabindex="0"><span class="num">4</span><div class="body"><span class="who actor client">攔截層 → Authenticator</span><p>攔截層把請求轉成 JSON，交給 authenticator。</p></div></li>
+      <li data-step="5" tabindex="0"><span class="num">5</span><div class="body"><span class="who actor auth">Authenticator 內部</span><p>確認 rpId 和 origin 一致 → 使用者驗證 → 從 allowCredentials 裡挑一把<strong>屬於這個網站</strong>的憑證，一把都挑不到就拒絕 → signCount 加 1 → 對 <code>authenticatorData ‖ SHA-256(clientDataJSON)</code> 簽章。</p><span class="where">程式：authenticator/service.py 的 get_assertion()</span></div></li>
+      <li data-step="6" tabindex="0"><span class="num">6</span><div class="body"><span class="who actor auth">Authenticator → 前端網頁</span><p>回傳 <code>clientDataJSON</code>（type 為 <code>webauthn.get</code>）、<code>authenticatorData</code>（只有 37 bytes，不含公鑰）、<code>signature</code> 與 <code>userHandle</code>。</p></div></li>
+      <li data-step="7" tabindex="0"><span class="num">7</span><div class="body"><span class="who actor client">前端網頁 → RP</span><p>前端把結果送到 <code>POST /authenticate/verify</code>。</p><span class="where">程式：frontend/src/lib/webauthn.ts 的 serializeAssertion()</span></div></li>
+      <li data-step="8" tabindex="0"><span class="num">8</span><div class="body"><span class="who actor rp">RP 內部</span><p>依 credential ID 找出公鑰與演算法 → 檢查 type、challenge、origin、rpIdHash → 對<strong>收到的 clientDataJSON 原始 bytes</strong> 算 SHA-256，接在 authenticatorData 後面，用公鑰驗章 → 通過就更新 signCount，登入成功。</p><span class="where">程式：rp_server/services.py 的 verify_authentication_payload()</span></div></li>
+    </ol>
+  </div>
+  <div class="prose">
+    <h3>allowCredentials：RP 指定這個帳號能用的鑰匙</h3>
+    <p>登入時，RP 會查資料庫，把<strong>這個帳號名下登記過的所有憑證 ID</strong> 列成一份清單交給 authenticator，意思是「這個帳號只有這幾把鑰匙算數，請用其中一把簽章」。authenticator 必須遵守兩條規則：</p>
+    <ol>
+      <li><strong>只能用清單上的鑰匙</strong>：清單上的一把都找不到，就直接回報錯誤，不能改用其他鑰匙。</li>
+      <li><strong>鑰匙必須屬於目前的網站</strong>：每把鑰匙都綁定在註冊時的網站上。就算清單列出了其他網站（例如 demo.yubico.com）的鑰匙 ID，也不能拿來登入這個網站。</li>
+    </ol>
+    <p>舉例來說，假設資料庫裡登記了兩個帳號（憑證 ID 為範例值）：</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>帳號</th><th>登記的憑證 ID</th><th>演算法</th></tr></thead>
+    <tbody>
+      <tr><td>alice</td><td><code>-mwuO…</code></td><td>ML-DSA-44</td></tr>
+      <tr><td>alice1</td><td><code>05Azl…</code></td><td>ML-DSA-65</td></tr>
+    </tbody>
+  </table></div>
+  <div class="prose">
+    <p>用 alice 登入時，RP 送出的清單只有 <code>[-mwuO…]</code>。如果使用者換了一台電腦、只重新註冊了 alice1，authenticator 裡就只剩 <code>05Azl…</code>。這時兩種做法的差別如下：</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>項目</th><th>不遵守規則（Day 1 修正前的 Python 版）</th><th>遵守規則（修正後）</th></tr></thead>
+    <tbody>
+      <tr><td>authenticator 的做法</td><td>清單上的 <code>-mwuO…</code> 找不到，就改用這個網站的第一把鑰匙，也就是 alice1 的 <code>05Azl…</code> 來簽章</td><td>清單上的鑰匙一把都找不到，直接回報錯誤，不簽章</td></tr>
+      <tr><td>結果</td><td>RP 發現這把鑰匙不屬於 alice，回傳「Unknown credential」，看不出真正的原因</td><td>前端直接顯示找不到可用的憑證，原因一目了然</td></tr>
+    </tbody>
+  </table></div>
+  <div class="two-col">
+    <div class="note">
+      <div class="note-label">為什麼要用「原始 bytes」算 hash？</div>
+      <p>簽章保護的是 authenticator 送出的那串 bytes。如果 RP 先把 JSON 解析成物件，再自己重新組回去，空白、跳脫字元這類寫法就可能和原本不同（欄位順序倒是會被保留），算出來的 hash 就對不上，合法的簽章也會被當成無效。RP 原本就是這樣重組的，這是 Day 1 修正的項目。</p>
+    </div>
+    <div class="note">
+      <div class="note-label">signCount 的用途</div>
+      <p>每次登入加 1。如果 RP 發現計數沒有比上次大，可能代表金鑰被複製到另一台裝置。目前 RP 還沒有檢查是否遞增，這列在待辦清單上。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="structures">
+  <div class="ch-head"><span class="ch-num">6</span><h2>資料結構拆解</h2></div>
+  <div class="prose"><p>流程裡傳來傳去的資料，其實只有幾種結構。這一章逐一拆開，數值都取自本專案實際的程式。</p></div>
+
+  <div class="prose"><h3>6.1 clientDataJSON：寫明「這次在做什麼」</h3>
+  <p>由 authenticator 這一側產生的一段 JSON，以 UTF-8 bytes 傳送。簽章時只會用到它的 SHA-256。</p></div>
+  <pre><code>{"type":"webauthn.get","challenge":"kN3dXq6Vb3sZp1yQe9f0T2m8w4uLr7cJ5hA0gYtKx1E","origin":"http://localhost:3000","crossOrigin":false}</code></pre>
+  <div class="table-wrap"><table>
+    <thead><tr><th>欄位</th><th>意義</th></tr></thead>
+    <tbody>
+      <tr><td><code>type</code></td><td>註冊是 <code>webauthn.create</code>，登入是 <code>webauthn.get</code>。避免把註冊的資料拿去當登入用。</td></tr>
+      <tr><td><code>challenge</code></td><td>RP 出的題目，用 base64url 編碼（上面是範例值）。RP 會確認它和自己發出的一致。</td></tr>
+      <tr><td><code>origin</code></td><td>發出請求的網頁來源。RP 會確認它是自己的網站。</td></tr>
+      <tr><td><code>crossOrigin</code></td><td>是否從其他網站的 iframe 發出。本專案固定為 <code>false</code>。</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="prose"><h3>6.2 authenticatorData：authenticator 的二進位報告</h3>
+  <p>點選色塊，下方表格會標出對應的欄位。<strong>登入時只有前 37 bytes</strong>；註冊時後面還會附上憑證資料。</p></div>
+  <div class="byte-strip" role="group" aria-label="authenticatorData 的欄位，依 byte 位置排列">
+    <button type="button" class="seg head" data-field="rpIdHash" style="--w:4"><span class="seg-name">rpIdHash</span><span class="seg-range">byte 0–31</span></button>
+    <button type="button" class="seg head" data-field="flags" style="--w:1"><span class="seg-name">flags</span><span class="seg-range">byte 32</span></button>
+    <button type="button" class="seg head" data-field="signCount" style="--w:1.4"><span class="seg-name">signCount</span><span class="seg-range">byte 33–36</span></button>
+    <button type="button" class="seg att" data-field="aaguid" style="--w:2.2"><span class="seg-name">AAGUID</span><span class="seg-range">byte 37–52</span></button>
+    <button type="button" class="seg att" data-field="credIdLen" style="--w:1.2"><span class="seg-name">credIdLength</span><span class="seg-range">byte 53–54</span></button>
+    <button type="button" class="seg att" data-field="credId" style="--w:2.6"><span class="seg-name">credentialId</span><span class="seg-range">byte 55–86</span></button>
+    <button type="button" class="seg att" data-field="pubKey" style="--w:4"><span class="seg-name">credentialPublicKey</span><span class="seg-range">byte 87 起</span></button>
+  </div>
+  <div class="strip-legend">
+    <span><span class="swatch head"></span>每次都有（共 37 bytes）</span>
+    <span><span class="swatch att"></span>只在註冊時出現（attested credential data）</span>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>位置</th><th>欄位</th><th class="num">長度</th><th>說明</th><th>本專案的值</th></tr></thead>
+    <tbody>
+      <tr data-field="rpIdHash"><td class="mono">0–31</td><td><code>rpIdHash</code></td><td class="num">32</td><td>SHA-256(rpId)。RP 比對它，確認簽章是給自己網站的。</td><td><code>localhost</code> → <code>49960de5…831d9763</code></td></tr>
+      <tr data-field="flags"><td class="mono">32</td><td><code>flags</code></td><td class="num">1</td><td>每個 bit 是一個旗標：UP（0x01）使用者在場、UV（0x04）使用者已通過驗證、AT（0x40）後面附有憑證資料。</td><td>註冊 <code>0x45</code>、登入 <code>0x05</code></td></tr>
+      <tr data-field="signCount"><td class="mono">33–36</td><td><code>signCount</code></td><td class="num">4</td><td>簽章計數器，大端序的無號整數。</td><td>註冊為 0，每次登入加 1</td></tr>
+      <tr data-field="aaguid"><td class="mono">37–52</td><td><code>AAGUID</code></td><td class="num">16</td><td>authenticator 型號的識別碼。</td><td>全為 0（不提供）</td></tr>
+      <tr data-field="credIdLen"><td class="mono">53–54</td><td><code>credentialIdLength</code></td><td class="num">2</td><td>後面 credential ID 的長度，大端序。</td><td>32</td></tr>
+      <tr data-field="credId"><td class="mono">55–86</td><td><code>credentialId</code></td><td class="num">32</td><td>這張憑證的 ID，之後登入時 RP 用它找出公鑰。</td><td>隨機產生</td></tr>
+      <tr data-field="pubKey"><td class="mono">87 起</td><td><code>credentialPublicKey</code></td><td class="num">不固定</td><td>COSE_Key 格式的公鑰，見 6.4。</td><td>ML-DSA-44：1,322 bytes<br>FN-DSA-512：907 bytes</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">合計：註冊時 ML-DSA-44 的 authenticatorData 共 1,409 bytes，FN-DSA-512 共 994 bytes；登入時固定 37 bytes。</p>
+
+  <div class="prose"><h3>6.3 attestationObject：註冊結果的外包裝</h3>
+  <p>用 CBOR（二進位版的 JSON）編碼的一個 map。<code>fmt: "none"</code> 代表不附上認證器的廠牌證明，本專案固定使用這個格式。</p></div>
+  <pre><code>{
+  "fmt": "none",
+  "attStmt": {},
+  "authData": h'49960de5…'   ← 就是 6.2 的 authenticatorData
+}</code></pre>
+
+  <div class="prose"><h3>6.4 COSE_Key：公鑰的標準寫法</h3>
+  <p>WebAuthn 用 COSE 格式描述公鑰：一個以整數為 key 的 CBOR map。傳統的 ES256 要分別存曲線和 x、y 座標；後量子演算法的公鑰本身就是一整串 bytes，所以 RFC 9964 定義了更簡單的 <strong>AKP</strong> 金鑰類型，只放演算法編號和公鑰。</p></div>
+  <div class="two-col">
+    <figure>
+      <pre><code>{
+   1: 7,      ← kty：金鑰類型 7 = AKP
+   3: -48,    ← alg：-48 = ML-DSA-44
+  -1: h'…'    ← pub：1,312 bytes 的公鑰
+}</code></pre>
+      <figcaption><strong>本專案（後量子，AKP）</strong>：FN-DSA 只需要把 <code>3</code> 換成 -54 或 -55。</figcaption>
+    </figure>
+    <figure>
+      <pre><code>{
+   1: 2,      ← kty：EC2（橢圓曲線）
+   3: -7,     ← alg：ES256
+  -1: 1,      ← crv：P-256
+  -2: h'…',   ← x 座標（32 bytes）
+  -3: h'…'    ← y 座標（32 bytes）
+}</code></pre>
+      <figcaption><strong>對照：一般 passkey（ES256，EC2）</strong></figcaption>
+    </figure>
+  </div>
+
+  <div class="prose"><h3>6.5 簽章到底簽了什麼</h3></div>
+  <figure>
+    <div class="fig-frame">
+      <svg viewBox="0 0 860 170" role="img" aria-label="簽章輸入：37 bytes 的 authenticatorData 接上 32 bytes 的 clientDataJSON 雜湊，共 69 bytes，用私鑰簽章後得到 signature。">
+        <defs>
+          <marker id="sig-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" class="svg-head"/>
+          </marker>
+        </defs>
+        <rect class="svg-box auth" x="20" y="30" width="230" height="64" rx="8"/>
+        <text class="svg-title" x="135" y="57" text-anchor="middle">authenticatorData</text>
+        <text class="svg-sub" x="135" y="78" text-anchor="middle">37 bytes</text>
+        <text class="svg-title" x="270" y="68" text-anchor="middle">‖</text>
+        <rect class="svg-box client" x="290" y="30" width="230" height="64" rx="8"/>
+        <text class="svg-title" x="405" y="57" text-anchor="middle">SHA-256(clientDataJSON)</text>
+        <text class="svg-sub" x="405" y="78" text-anchor="middle">32 bytes</text>
+        <line class="svg-arrow" x1="526" y1="62" x2="612" y2="62" marker-end="url(#sig-arrow)"/>
+        <text class="svg-label" x="569" y="52" text-anchor="middle">私鑰簽章</text>
+        <rect class="svg-box auth" x="620" y="22" width="220" height="80" rx="8"/>
+        <text class="svg-title" x="730" y="48" text-anchor="middle">signature</text>
+        <text class="svg-sub" x="730" y="68" text-anchor="middle">ML-DSA-44：2,420 bytes</text>
+        <text class="svg-sub" x="730" y="86" text-anchor="middle">FN-DSA-512：約 655 bytes</text>
+        <polyline class="svg-bracket" points="20,112 20,120 520,120 520,112"/>
+        <text class="svg-label" x="270" y="142" text-anchor="middle">簽章輸入共 69 bytes，RP 驗章時用完全相同的方式重組</text>
+      </svg>
+    </div>
+    <figcaption><strong>圖 4｜登入時的簽章輸入。</strong>clientDataJSON 先經過 SHA-256 縮成 32 bytes，接在 authenticatorData 後面一起簽。註冊時不產生簽章。</figcaption>
+  </figure>
+
+  <div class="prose"><h3>6.6 base64url：讓二進位資料能放進 JSON</h3>
+  <p>WebAuthn 的 JavaScript API 用 ArrayBuffer 表示二進位資料，但 JSON 只能放文字。所以前端、攔截層與 RP 之間一律把二進位轉成 <strong>base64url</strong>：使用 A–Z、a–z、0–9、<code>-</code>、<code>_</code> 這 64 個字元，結尾不補 <code>=</code>。</p></div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="pqc">
+  <div class="ch-head"><span class="ch-num">7</span><h2>後量子演算法</h2></div>
+  <div class="prose">
+    <p>後量子密碼學（PQC）指的是能抵抗量子電腦攻擊的密碼學。RSA 和橢圓曲線的安全性，建立在「因數分解」和「離散對數」很難計算上，而 Shor 演算法能在量子電腦上有效解出這兩個問題。後量子演算法改用量子電腦也沒有已知快速解法的數學問題，本專案用的兩種都屬於<strong>格（lattice）密碼學</strong>。</p>
+  </div>
+
+  <div class="prose"><h3>7.1 NIST 的後量子標準</h3></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>標準</th><th>演算法（前身）</th><th>用途</th><th>狀態</th></tr></thead>
+    <tbody>
+      <tr><td>FIPS 203</td><td>ML-KEM（Kyber）</td><td>金鑰交換</td><td>2024-08-13 發布 <span class="pill off">本專案不使用</span></td></tr>
+      <tr><td>FIPS 204</td><td>ML-DSA（CRYSTALS-Dilithium）</td><td>數位簽章</td><td>2024-08-13 發布 <span class="pill done">已實作</span></td></tr>
+      <tr><td>FIPS 205</td><td>SLH-DSA（SPHINCS+）</td><td>數位簽章</td><td>2024-08-13 發布 <span class="pill off">本專案不使用</span></td></tr>
+      <tr><td>FIPS 206</td><td>FN-DSA（Falcon）</td><td>數位簽章</td><td>尚未發布 <span class="pill wip">實作中</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="prose"><h3>7.2 本專案支援的演算法</h3>
+  <p>每個演算法在 WebAuthn 裡用一個整數代表，稱為 <strong>COSE alg</strong>。RP 在 pubKeyCredParams 列出它接受的編號，authenticator 從中挑一個，寫進公鑰的 <code>3</code>（alg）欄位。</p></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>演算法</th><th class="num">COSE alg</th><th class="num">NIST 等級</th><th class="num">公鑰</th><th class="num">簽章</th><th>本專案狀態</th></tr></thead>
+    <tbody>
+      <tr><td>ES256（ECDSA P-256，對照用）</td><td class="num">-7</td><td class="num">—</td><td class="num">64</td><td class="num">約 70–72</td><td><span class="pill off">不支援，會被量子破解</span></td></tr>
+      <tr><td>ML-DSA-44</td><td class="num">-48</td><td class="num">2</td><td class="num">1,312</td><td class="num">2,420</td><td><span class="pill done">已完成</span></td></tr>
+      <tr><td>ML-DSA-65</td><td class="num">-49</td><td class="num">3</td><td class="num">1,952</td><td class="num">3,309</td><td><span class="pill done">已完成（RP 預設優先）</span></td></tr>
+      <tr><td>ML-DSA-87</td><td class="num">-50</td><td class="num">5</td><td class="num">2,592</td><td class="num">4,627</td><td><span class="pill done">已完成</span></td></tr>
+      <tr><td>FN-DSA-512</td><td class="num">-54（暫定）</td><td class="num">1</td><td class="num">897</td><td class="num">平均約 655（上限 752）</td><td><span class="pill wip">實作中</span></td></tr>
+      <tr><td>FN-DSA-1024</td><td class="num">-55（暫定）</td><td class="num">5</td><td class="num">1,793</td><td class="num">平均約 1,271（上限 1,462）</td><td><span class="pill wip">實作中</span></td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">單位為 bytes。NIST 等級 1、2、3、5 分別代表：破解它至少和「破解 AES-128」「找出 SHA-256 碰撞」「破解 AES-192」「破解 AES-256」一樣困難。</p>
+
+  <figure>
+    <div class="bars" role="img" aria-label="簽章大小比較：ES256 約 70 bytes，FN-DSA-512 約 655，FN-DSA-1024 約 1271，ML-DSA-44 為 2420，ML-DSA-65 為 3309，ML-DSA-87 為 4627。">
+      <div class="bar-row"><span>ES256</span><div class="bar-track"><div class="bar-fill classic" style="width:1.5%"></div></div><span class="bar-val">≈ 70</span></div>
+      <div class="bar-row"><span>FN-DSA-512</span><div class="bar-track"><div class="bar-fill fn" style="width:14.2%"></div></div><span class="bar-val">≈ 655</span></div>
+      <div class="bar-row"><span>FN-DSA-1024</span><div class="bar-track"><div class="bar-fill fn" style="width:27.5%"></div></div><span class="bar-val">≈ 1,271</span></div>
+      <div class="bar-row"><span>ML-DSA-44</span><div class="bar-track"><div class="bar-fill ml" style="width:52.3%"></div></div><span class="bar-val">2,420</span></div>
+      <div class="bar-row"><span>ML-DSA-65</span><div class="bar-track"><div class="bar-fill ml" style="width:71.5%"></div></div><span class="bar-val">3,309</span></div>
+      <div class="bar-row"><span>ML-DSA-87</span><div class="bar-track"><div class="bar-fill ml" style="width:100%"></div></div><span class="bar-val">4,627</span></div>
+    </div>
+    <figcaption><strong>圖 5｜每次登入要傳送的簽章大小（bytes，長條依實際大小等比例）。</strong>灰色是傳統演算法，藍色是 FN-DSA，綠色是 ML-DSA。後量子簽章大了幾十倍，這是把 PQC 用在 WebAuthn 的主要代價；FN-DSA 的簽章大約只有 ML-DSA 的四分之一。</figcaption>
+  </figure>
+
+  <div class="two-col">
+    <div class="card">
+      <h3>ML-DSA（FIPS 204）</h3>
+      <p>由 CRYSTALS-Dilithium 標準化而來，安全性建立在模格（module lattice）上的 MLWE 與 MSIS 問題。簽章時如果算出的候選簽章可能洩漏私鑰資訊，就丟掉重算，這個設計稱為 Fiat-Shamir with Aborts。</p>
+      <p><strong>注意</strong>：FIPS 204 的 ML-DSA 和舊版 Dilithium 不相容，因為私鑰多了 32 bytes，ML-DSA-65/87 的簽章也變長，舊版的簽章用 ML-DSA 驗不過。本專案用的是 liboqs 的 <code>ML-DSA-44/65/87</code>，也就是標準版。COSE 編號 -48、-49、-50 已由 RFC 9964 正式登記。</p>
+    </div>
+    <div class="card">
+      <h3>FN-DSA（Falcon）</h3>
+      <p>建立在 NTRU 格上，採用 hash-then-sign：先把訊息雜湊成一個目標點，再用私鑰找出靠近它的格點當作簽章。簽章很小，但簽章過程需要精密的浮點數運算，實作難度高。</p>
+      <p><strong>現況</strong>：FIPS 206 尚未發布，而且 NIST 已經公告會修改原規格。本專案先依原作者提交給 NIST 的第三輪規格（v1.2）實作，用 liboqs 的 Falcon-512/1024，並已用官方測試向量（KAT）驗證 100/100 筆一致。COSE 編號 -54、-55 是 IETF 草案申請中的暫定值，尚未正式分配。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="codemap">
+  <div class="ch-head"><span class="ch-num">8</span><h2>程式碼地圖</h2></div>
+  <div class="prose"><h3>8.1 兩條 authenticator 路線</h3>
+  <p>專案裡有兩個做同一件事的 authenticator，差別在於請求要經過哪些邊界。</p></div>
+  <figure>
+    <div class="fig-frame">
+      <svg viewBox="0 0 860 430" role="img" aria-label="兩條路線的比較：Python bridge 由 Playwright 把頁面的呼叫直接交給 Python authenticator，再呼叫原生 liboqs；Chrome Extension 要從頁面經過 content script、background service worker，再呼叫 WASM 版的 liboqs。">
+        <defs>
+          <marker id="path-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+            <path d="M0,0 L10,5 L0,10 z" class="svg-head"/>
+          </marker>
+        </defs>
+        <text class="svg-region-label" x="215" y="28" text-anchor="middle">PYTHON BRIDGE（localhost:3000）</text>
+        <text class="svg-region-label" x="645" y="28" text-anchor="middle">CHROME EXTENSION（demo.yubico.com）</text>
+        <line class="svg-life" x1="430" y1="12" x2="430" y2="420"/>
+
+        <rect class="svg-box client" x="85" y="50" width="260" height="52" rx="8"/>
+        <text class="svg-title" x="215" y="73" text-anchor="middle">頁面 JavaScript</text>
+        <text class="svg-sub" x="215" y="91" text-anchor="middle">被改寫的 navigator.credentials</text>
+        <line class="svg-arrow" x1="215" y1="104" x2="215" y2="147" marker-end="url(#path-arrow)"/>
+        <text class="svg-label" x="225" y="130">Playwright 綁定函式</text>
+        <rect class="svg-box auth" x="85" y="150" width="260" height="52" rx="8"/>
+        <text class="svg-title" x="215" y="173" text-anchor="middle">Python authenticator</text>
+        <text class="svg-sub" x="215" y="191" text-anchor="middle">authenticator/service.py</text>
+        <line class="svg-arrow" x1="215" y1="204" x2="215" y2="247" marker-end="url(#path-arrow)"/>
+        <text class="svg-label" x="225" y="230">liboqs-python</text>
+        <rect class="svg-box auth" x="85" y="250" width="260" height="52" rx="8"/>
+        <text class="svg-title" x="215" y="273" text-anchor="middle">liboqs 原生函式庫</text>
+        <text class="svg-sub" x="215" y="291" text-anchor="middle">編譯好的 C 函式庫（DLL）</text>
+
+        <rect class="svg-box client" x="515" y="50" width="260" height="52" rx="8"/>
+        <text class="svg-title" x="645" y="73" text-anchor="middle">頁面 JavaScript</text>
+        <text class="svg-sub" x="645" y="91" text-anchor="middle">injected.js 改寫 navigator.credentials</text>
+        <line class="svg-arrow" x1="645" y1="104" x2="645" y2="147" marker-end="url(#path-arrow)"/>
+        <text class="svg-label" x="655" y="130">window.postMessage</text>
+        <rect class="svg-box client" x="515" y="150" width="260" height="52" rx="8"/>
+        <text class="svg-title" x="645" y="173" text-anchor="middle">content script</text>
+        <text class="svg-sub" x="645" y="191" text-anchor="middle">在隔離環境中轉送訊息</text>
+        <line class="svg-arrow" x1="645" y1="204" x2="645" y2="247" marker-end="url(#path-arrow)"/>
+        <text class="svg-label" x="655" y="230">chrome.runtime.sendMessage</text>
+        <rect class="svg-box auth" x="515" y="250" width="260" height="52" rx="8"/>
+        <text class="svg-title" x="645" y="273" text-anchor="middle">background service worker</text>
+        <text class="svg-sub" x="645" y="291" text-anchor="middle">authenticator.ts：認證器邏輯</text>
+        <line class="svg-arrow" x1="645" y1="304" x2="645" y2="347" marker-end="url(#path-arrow)"/>
+        <text class="svg-label" x="655" y="330">WebAssembly 呼叫</text>
+        <rect class="svg-box auth" x="515" y="350" width="260" height="52" rx="8"/>
+        <text class="svg-title" x="645" y="373" text-anchor="middle">pq_bridge.wasm</text>
+        <text class="svg-sub" x="645" y="391" text-anchor="middle">liboqs 用 Emscripten 編譯成 WASM</text>
+      </svg>
+    </div>
+    <figcaption><strong>圖 6｜兩條路線的差異。</strong>Python bridge 由 Playwright 直接把頁面的呼叫交給 Python 程式；Extension 的請求要依序經過頁面、content script、background 三個彼此隔離的環境，再呼叫 WASM 版的 liboqs。</figcaption>
+  </figure>
+  <div class="table-wrap"><table>
+    <thead><tr><th>項目</th><th>Python bridge</th><th>Chrome Extension</th></tr></thead>
+    <tbody>
+      <tr><td>適用網站</td><td>本專案的前端 localhost:3000</td><td>demo.yubico.com（目前寫死；該網站已接受 -48、-49、-50）</td></tr>
+      <tr><td>攔截方式</td><td>Playwright 開一個 Chromium，注入腳本改寫 API</td><td>content script 在頁面載入前注入 injected.js</td></tr>
+      <tr><td>認證器邏輯</td><td><code>authenticator/service.py</code>（Python）</td><td><code>extension/src/background/authenticator.ts</code>（TypeScript）</td></tr>
+      <tr><td>密碼學</td><td>liboqs 原生函式庫（liboqs-python）</td><td>liboqs 編譯成 WebAssembly（<code>pq_bridge.wasm</code>）</td></tr>
+      <tr><td>私鑰儲存</td><td>Windows：DPAPI 加密檔案；macOS：Keychain</td><td><code>chrome.storage.local</code>（尚未加密）</td></tr>
+      <tr><td>使用者驗證</td><td>Windows Hello、Touch ID</td><td>預設不驗證；可透過 Native Messaging 啟用 Windows Hello、Touch ID</td></tr>
+      <tr><td>啟動方式</td><td><code>uv run python -m authenticator --url …</code></td><td>在 <code>chrome://extensions</code> 載入 <code>extension/dist</code></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="prose"><h3>8.2 目錄導覽</h3></div>
+  <div class="codemap">
+    <div class="card">
+      <h3><span class="actor rp">rp_server/</span></h3>
+      <ul>
+        <li><span class="path">app.py</span><span>四支 API：註冊與登入各兩支（options、verify）</span></li>
+        <li><span class="path">services.py</span><span>驗證邏輯：解析 authenticatorData、CBOR、COSE，呼叫 liboqs 驗章</span></li>
+        <li><span class="path">config.py</span><span>rp_id、origin、hosted_algorithms 等設定</span></li>
+        <li><span class="path">models.py</span><span>資料表：User、Credential</span></li>
+        <li><span class="path">challenges.py</span><span>暫存已發出的 challenge（存在記憶體）</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="actor auth">authenticator/</span></h3>
+      <ul>
+        <li><span class="path">__main__.py</span><span>啟動入口</span></li>
+        <li><span class="path">bridge.py</span><span>Playwright 攔截與注入腳本</span></li>
+        <li><span class="path">service.py</span><span>make_credential()、get_assertion()</span></li>
+        <li><span class="path">pqcrypto.py</span><span>COSE 編號 → liboqs 演算法名稱；產生金鑰、簽章</span></li>
+        <li><span class="path">webauthn.py</span><span>組出 authenticatorData、COSE_Key、attestationObject</span></li>
+        <li><span class="path">storage.py</span><span>憑證儲存（Windows DPAPI／keyring）</span></li>
+        <li><span class="path">touch.py</span><span>Windows Hello、Touch ID 使用者驗證</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="actor client">frontend/</span></h3>
+      <ul>
+        <li><span class="path">src/pages/index.tsx</span><span>註冊與登入頁面</span></li>
+        <li><span class="path">src/lib/webauthn.ts</span><span>base64url 轉換與結果序列化</span></li>
+        <li><span class="path">src/lib/api.ts</span><span>呼叫 RP 的 API</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="actor client">extension/</span></h3>
+      <ul>
+        <li><span class="path">src/injected/</span><span>在頁面中改寫 navigator.credentials</span></li>
+        <li><span class="path">src/content/</span><span>在頁面與 background 之間轉送訊息</span></li>
+        <li><span class="path">src/background/</span><span>認證器邏輯、WASM 載入、儲存、原生使用者驗證</span></li>
+        <li><span class="path">wasm/pq_bridge.c</span><span>把 COSE 編號對應到 liboqs 的 C 介面</span></li>
+        <li><span class="path">scripts/</span><span>編譯 liboqs 與 WASM 的腳本</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>codex/ 與根目錄</h3>
+      <ul>
+        <li><span class="path">CLAUDE.md</span><span>專案協作守則</span></li>
+        <li><span class="path">workflow.md</span><span>FN-DSA 整合的功能表（F01–F19）</span></li>
+        <li><span class="path">codex/FN-DSA-PLAN.md</span><span>FN-DSA 每日實作計畫</span></li>
+        <li><span class="path">codex/worklog/</span><span>每天的工作紀錄</span></li>
+        <li><span class="path">codex/REPORTS.md</span><span>決策紀錄</span></li>
+        <li><span class="path">codex/docs/FALCON_INTEGRATION_HANDOVER.md</span><span>FN-DSA 交接文件</span></li>
+        <li><span class="path">codex/SECURITY_REPORTS/</span><span>安全審查報告</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="quickstart">
+  <div class="ch-head"><span class="ch-num">9</span><h2>動手跑一次</h2></div>
+  <div class="prose"><p>照順序在專案根目錄開幾個終端機執行。第一次執行時，如果電腦裡找不到 liboqs 的原生函式庫，liboqs-python 會自動下載並編譯（需要 git 和 cmake），要多等幾分鐘。</p></div>
+  <ol class="cmds">
+    <li><strong>安裝依賴</strong>
+      <div class="cmd"><pre><code>uv sync</code></pre><button type="button" class="copy-btn">複製</button></div>
+      <div class="cmd"><pre><code>cd frontend && bun install</code></pre><button type="button" class="copy-btn">複製</button></div>
+    </li>
+    <li><strong>啟動 RP Server</strong>（在根目錄；第一次會自動建立資料庫）
+      <div class="cmd"><pre><code>uv run flask --app rp_server.app run --port 5005 --debug</code></pre><button type="button" class="copy-btn">複製</button></div>
+    </li>
+    <li><strong>啟動前端</strong>（另開一個終端機）
+      <div class="cmd"><pre><code>cd frontend && bun dev</code></pre><button type="button" class="copy-btn">複製</button></div>
+    </li>
+    <li><strong>啟動 authenticator</strong>（再開一個終端機，在根目錄）。它會開一個 Chromium 視窗，在裡面註冊和登入，終端機會印出 RP 與 authenticator 的紀錄。
+      <div class="cmd"><pre><code>uv run python -m authenticator --url http://localhost:3000</code></pre><button type="button" class="copy-btn">複製</button></div>
+    </li>
+    <li><strong>跑測試</strong>（在根目錄；Extension 與前端的測試分別在各自的資料夾執行 <code>bun test</code>）
+      <div class="cmd"><pre><code>uv run pytest</code></pre><button type="button" class="copy-btn">複製</button></div>
+    </li>
+  </ol>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="status">
+  <div class="ch-head"><span class="ch-num">10</span><h2>目前進度</h2></div>
+  <div class="two-col">
+    <div class="card">
+      <h3>已完成</h3>
+      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 32 個、Extension 11 個、前端 4 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。</p>
+    </div>
+    <div class="card">
+      <h3>進行中</h3>
+      <p>FN-DSA-512 與 FN-DSA-1024 的整合，依照 12 天的計畫進行，詳見 <code>codex/FN-DSA-PLAN.md</code>，每天的細節記在 <code>codex/worklog/</code>。</p>
+    </div>
+  </div>
+  <div class="prose"><h3>已知限制</h3></div>
+  <ul class="refs">
+    <li>Extension 的私鑰存在 <code>chrome.storage.local</code>，還沒有加密。</li>
+    <li>RP 尚未檢查 signCount 是否遞增。</li>
+    <li>attestation 固定為 <code>none</code>，不證明 authenticator 的廠牌型號。</li>
+    <li>Extension 目前只在 demo.yubico.com 啟用。</li>
+    <li>liboqs 官方說明它供研究與原型使用，不建議用在正式環境。</li>
+    <li>FIPS 206 尚未發布，FN-DSA 的實作與 COSE 編號之後可能需要更新。</li>
+  </ul>
+</section>
+
+<!-- ============ 11 ============ -->
+<section id="glossary">
+  <div class="ch-head"><span class="ch-num">11</span><h2>名詞表</h2></div>
+  <div class="search">
+    <label for="glossary-search">搜尋名詞</label>
+    <input id="glossary-search" type="search" placeholder="例如：COSE、signCount、格" autocomplete="off">
+  </div>
+  <p id="glossary-empty" class="muted" hidden>找不到符合的名詞，試試別的關鍵字。</p>
+
+  <div class="term-group">
+    <h3>WebAuthn 協議</h3>
+    <dl class="terms">
+      <div class="term"><dt>WebAuthn</dt><dd>W3C 制定的網頁 API 標準，讓網站用公開金鑰密碼學取代密碼登入。</dd></div>
+      <div class="term"><dt>FIDO2</dt><dd>FIDO 聯盟的免密碼登入規範總稱，包含 WebAuthn（瀏覽器這一側）與 CTAP（瀏覽器和外接認證器之間的通訊協定）。</dd></div>
+      <div class="term"><dt>Passkey</dt><dd>給一般使用者看的名稱，指一組 WebAuthn 憑證。</dd></div>
+      <div class="term"><dt>Relying Party（RP，依賴方）</dt><dd>要驗證使用者身分的網站；本專案是 rp_server。</dd></div>
+      <div class="term"><dt>rpId</dt><dd>RP 的識別名稱，通常是網域；本專案為 localhost。</dd></div>
+      <div class="term"><dt>origin</dt><dd>網頁的來源，由協定、網域、埠組成，例如 http://localhost:3000。</dd></div>
+      <div class="term"><dt>Authenticator（認證器）</dt><dd>產生、保管私鑰並執行簽章的元件。</dd></div>
+      <div class="term"><dt>Platform authenticator</dt><dd>內建在裝置上的認證器，例如 Windows Hello、Touch ID。本專案回報 authenticatorAttachment 為 platform。</dd></div>
+      <div class="term"><dt>Ceremony（儀式）</dt><dd>WebAuthn 對一次註冊或登入的稱呼。</dd></div>
+      <div class="term"><dt>Registration／Attestation（註冊）</dt><dd>建立新憑證的儀式，對應 navigator.credentials.create()。</dd></div>
+      <div class="term"><dt>Authentication／Assertion（登入／斷言）</dt><dd>用既有憑證登入的儀式，對應 navigator.credentials.get()；authenticator 回傳的簽章結果稱為 assertion。</dd></div>
+      <div class="term"><dt>Credential（憑證）</dt><dd>一組金鑰對，加上 credential ID、所屬網站等資料。</dd></div>
+      <div class="term"><dt>Credential ID</dt><dd>憑證的唯一識別碼；本專案為 32 bytes 隨機值。</dd></div>
+      <div class="term"><dt>User handle</dt><dd>RP 指派給使用者的隨機 ID，不是帳號名稱。</dd></div>
+      <div class="term"><dt>Challenge</dt><dd>RP 每次產生的隨機值，簽章時一起被簽進去，用來防止重放攻擊。</dd></div>
+      <div class="term"><dt>pubKeyCredParams</dt><dd>RP 接受的演算法清單，依偏好排序。</dd></div>
+      <div class="term"><dt>excludeCredentials</dt><dd>註冊時列出已存在的憑證，避免同一個 authenticator 重複註冊。</dd></div>
+      <div class="term"><dt>allowCredentials</dt><dd>登入時，RP 列出這個帳號名下登記過的憑證 ID；authenticator 只能從中挑選屬於這個網站的憑證，一把都找不到就必須回報錯誤（例子見第 5 章）。</dd></div>
+      <div class="term"><dt>UP（User Presence）</dt><dd>使用者在場，例如按了按鈕；flags 中的 0x01。</dd></div>
+      <div class="term"><dt>UV（User Verification）</dt><dd>使用者通過驗證，例如指紋、PIN、Windows Hello；flags 中的 0x04。</dd></div>
+      <div class="term"><dt>signCount</dt><dd>簽章計數器，每次登入加 1，用來偵測被複製的認證器。</dd></div>
+      <div class="term"><dt>AAGUID</dt><dd>認證器型號的 16 bytes 識別碼；本專案全為 0。</dd></div>
+      <div class="term"><dt>Attestation format none</dt><dd>不提供認證器廠牌型號的證明；本專案固定使用。</dd></div>
+    </dl>
+  </div>
+
+  <div class="term-group">
+    <h3>資料格式</h3>
+    <dl class="terms">
+      <div class="term"><dt>clientDataJSON</dt><dd>記錄這次操作的 JSON，包含 type、challenge、origin；以 UTF-8 bytes 傳送。</dd></div>
+      <div class="term"><dt>authenticatorData（authData）</dt><dd>authenticator 產生的二進位資料：rpIdHash、flags、signCount，註冊時還附上憑證資料。</dd></div>
+      <div class="term"><dt>attestationObject</dt><dd>註冊時回傳的 CBOR 結構，包含 fmt、attStmt、authData。</dd></div>
+      <div class="term"><dt>rpIdHash</dt><dd>SHA-256(rpId)，位於 authenticatorData 開頭 32 bytes。</dd></div>
+      <div class="term"><dt>CBOR</dt><dd>二進位版的 JSON（RFC 8949），WebAuthn 用它編碼 attestationObject 與公鑰。</dd></div>
+      <div class="term"><dt>COSE</dt><dd>用 CBOR 表示金鑰與演算法的標準；WebAuthn 的公鑰採用 COSE_Key 格式。</dd></div>
+      <div class="term"><dt>COSE_Key</dt><dd>用整數為 key 的 CBOR map 表示公鑰，例如 {1: kty, 3: alg, -1: pub}。</dd></div>
+      <div class="term"><dt>kty</dt><dd>COSE_Key 的金鑰類型欄位（標籤 1），例如 2 = EC2、7 = AKP。</dd></div>
+      <div class="term"><dt>AKP（Algorithm Key Pair）</dt><dd>RFC 9964 定義的金鑰類型（kty = 7），用在公鑰是一整串 bytes 的後量子演算法。</dd></div>
+      <div class="term"><dt>COSE alg</dt><dd>演算法的整數編號，例如 -7 = ES256、-48 = ML-DSA-44。</dd></div>
+      <div class="term"><dt>base64url</dt><dd>把二進位轉成可放進網址與 JSON 的文字：用 - 和 _，結尾不補 =。</dd></div>
+    </dl>
+  </div>
+
+  <div class="term-group">
+    <h3>密碼學</h3>
+    <dl class="terms">
+      <div class="term"><dt>數位簽章</dt><dd>用私鑰簽、用公鑰驗，證明資料來自私鑰持有者且沒有被竄改。</dd></div>
+      <div class="term"><dt>SHA-256</dt><dd>輸出 32 bytes 的雜湊函數。</dd></div>
+      <div class="term"><dt>PQC（後量子密碼學）</dt><dd>能抵抗量子電腦攻擊的密碼學。</dd></div>
+      <div class="term"><dt>Shor 演算法</dt><dd>量子演算法，能有效破解 RSA 與橢圓曲線密碼。</dd></div>
+      <div class="term"><dt>格（Lattice）密碼學</dt><dd>建立在高維度格子相關數學問題上的密碼學；ML-DSA 與 FN-DSA 都屬於這類。</dd></div>
+      <div class="term"><dt>ML-DSA</dt><dd>Module-Lattice-Based Digital Signature Algorithm，NIST FIPS 204，由 CRYSTALS-Dilithium 標準化而來。</dd></div>
+      <div class="term"><dt>CRYSTALS-Dilithium</dt><dd>ML-DSA 的前身（NIST 第三輪版本），和 ML-DSA 不相容。</dd></div>
+      <div class="term"><dt>FN-DSA</dt><dd>FFT over NTRU-Lattice-Based Digital Signature Algorithm，預定的 NIST FIPS 206，以 Falcon 為基礎。</dd></div>
+      <div class="term"><dt>Falcon</dt><dd>FN-DSA 的前身；本專案使用原作者提交給 NIST 的第三輪規格 v1.2。</dd></div>
+      <div class="term"><dt>NTRU</dt><dd>一種格密碼結構，是 Falcon 的數學基礎。</dd></div>
+      <div class="term"><dt>Hedged signing</dt><dd>每次簽章都加入新的隨機數，同一則訊息每次簽出不同的簽章；ML-DSA 預設採用。</dd></div>
+      <div class="term"><dt>Context string（ctx）</dt><dd>FIPS 204 加入的簽章參數，最長 255 bytes；RFC 9964 規定在 COSE 中必須為空字串。</dd></div>
+      <div class="term"><dt>NIST 安全等級</dt><dd>1、2、3、5 級，分別對應破解 AES-128、找出 SHA-256 碰撞、破解 AES-192、破解 AES-256 所需的計算量。</dd></div>
+      <div class="term"><dt>KAT（Known Answer Test）</dt><dd>用固定輸入和官方公布的預期輸出，驗證實作是否正確的測試。</dd></div>
+      <div class="term"><dt>ES256</dt><dd>ECDSA 搭配 P-256 曲線與 SHA-256，WebAuthn 最常見的傳統演算法（COSE -7）。</dd></div>
+    </dl>
+  </div>
+
+  <div class="term-group">
+    <h3>標準與組織</h3>
+    <dl class="terms">
+      <div class="term"><dt>NIST</dt><dd>美國國家標準與技術研究院，主持後量子密碼標準化。</dd></div>
+      <div class="term"><dt>FIPS</dt><dd>NIST 發布的聯邦資訊處理標準，例如 FIPS 204。</dd></div>
+      <div class="term"><dt>NIST IR 8547</dt><dd>NIST 的後量子遷移時程報告，2026 年 10 月定稿。</dd></div>
+      <div class="term"><dt>IETF／RFC</dt><dd>網際網路標準組織與它發布的標準文件，例如 RFC 9964。</dd></div>
+      <div class="term"><dt>IANA</dt><dd>負責登記網際網路編號的機構，COSE 演算法編號由它登記。</dd></div>
+      <div class="term"><dt>W3C</dt><dd>制定 WebAuthn 的網頁標準組織。</dd></div>
+    </dl>
+  </div>
+
+  <div class="term-group">
+    <h3>專案工具</h3>
+    <dl class="terms">
+      <div class="term"><dt>liboqs</dt><dd>Open Quantum Safe 專案的 C 語言後量子密碼函式庫。</dd></div>
+      <div class="term"><dt>liboqs-python</dt><dd>liboqs 的 Python 介面，RP 與 Python authenticator 都透過它呼叫 liboqs。</dd></div>
+      <div class="term"><dt>WebAssembly（WASM）</dt><dd>瀏覽器可以執行的二進位程式格式；Extension 用它在瀏覽器裡執行 liboqs。</dd></div>
+      <div class="term"><dt>Emscripten</dt><dd>把 C 程式編譯成 WebAssembly 的工具鏈。</dd></div>
+      <div class="term"><dt>Playwright</dt><dd>瀏覽器自動化工具；Python bridge 用它開 Chromium 並注入腳本。</dd></div>
+      <div class="term"><dt>binding（expose_binding）</dt><dd>Playwright 的功能：把 Python 函式掛到網頁的 window 上（例如 window.__pqMakeCredential），讓頁面的 JavaScript 呼叫。Playwright 會一併告訴 Python 是哪個 frame 呼叫的，這項資訊頁面無法偽造。</dd></div>
+      <div class="term"><dt>frame</dt><dd>瀏覽器裡裝載一份網頁的框：分頁本身是主 frame，頁面中的每個 iframe 各是一個 frame。Python bridge 從呼叫者 frame 的網址取出 origin。</dd></div>
+      <div class="term"><dt>Chrome MV3</dt><dd>Chrome extension 的第三版規格（Manifest V3）。</dd></div>
+      <div class="term"><dt>Service worker</dt><dd>MV3 extension 的背景程式；Extension 版的認證器邏輯在這裡執行。</dd></div>
+      <div class="term"><dt>Content script／Injected script</dt><dd>content script 在隔離環境中轉送訊息；injected script 在頁面環境中改寫 navigator.credentials。</dd></div>
+      <div class="term"><dt>Native Messaging</dt><dd>讓 extension 呼叫本機程式的機制，用來啟動 Windows Hello 與 Touch ID。</dd></div>
+      <div class="term"><dt>DPAPI</dt><dd>Windows 的資料保護 API，用目前使用者的身分加密資料；Python authenticator 用它加密私鑰。</dd></div>
+      <div class="term"><dt>Windows Hello／Touch ID</dt><dd>作業系統內建的使用者驗證。</dd></div>
+      <div class="term"><dt>uv</dt><dd>Python 套件與執行環境的管理工具。</dd></div>
+      <div class="term"><dt>bun</dt><dd>JavaScript 執行環境與套件管理工具。</dd></div>
+      <div class="term"><dt>TDD</dt><dd>測試驅動開發：先寫一個會失敗的測試，再寫程式讓它通過。</dd></div>
+      <div class="term"><dt>CI</dt><dd>持續整合：每次提交或開 PR 時，自動在另一台機器上執行測試。</dd></div>
+    </dl>
+  </div>
+</section>
+
+<!-- ============ 12 ============ -->
+<section id="faq">
+  <div class="ch-head"><span class="ch-num">12</span><h2>常見問題</h2></div>
+  <div class="faq">
+    <details>
+      <summary>為什麼不直接修改瀏覽器？</summary>
+      <p>修改瀏覽器的成本太高，也無法讓一般使用者安裝。改寫 navigator.credentials 可以在不動瀏覽器的前提下，完整走完 WebAuthn 流程。代價是只有接受這些新演算法編號的 RP，例如我們自己的 rp_server 或 Yubico 的示範網站，才能驗證這些簽章。</p>
+    </details>
+    <details>
+      <summary>ML-DSA 和 Dilithium 可以混用嗎？</summary>
+      <p>不行。FIPS 204 修改了金鑰與簽章的計算方式，舊版 Dilithium 的簽章用 ML-DSA 驗不過。本專案用的是 liboqs 的 ML-DSA-44/65/87，不是 Dilithium2/3/5。</p>
+    </details>
+    <details>
+      <summary>-54、-55 是正式的演算法編號嗎？</summary>
+      <p>不是。它們是 IETF 草案 draft-ietf-cose-falcon 申請中的值，IANA 尚未分配。FIPS 206 發布後，實作和編號可能都要調整，用舊版註冊的憑證也要重新註冊。</p>
+    </details>
+    <details>
+      <summary>Falcon 的簽章為什麼長度不固定？</summary>
+      <p>Falcon 的簽章經過壓縮編碼，長度依內容而定：Falcon-512 平均約 655 bytes，上限 752。規格也定義了補 0 到固定長度（666 bytes）的格式，liboqs 稱為 Falcon-padded-512。</p>
+    </details>
+    <details>
+      <summary>RP 為什麼要檢查 origin 和 rpIdHash？</summary>
+      <p>檢查 origin，是確認請求來自自己的網頁，而不是把請求轉送過來的釣魚網站；檢查 rpIdHash，是確認 authenticator 簽章時認定的網站就是自己。兩者都對了，簽章才有意義。</p>
+    </details>
+    <details>
+      <summary>liboqs 可以用在正式環境嗎？</summary>
+      <p>liboqs 官方說明它供研究與原型使用，不建議用在正式環境。本專案是研究原型，符合這個定位。</p>
+    </details>
+  </div>
+</section>
+
+<!-- ============ 參考資料 ============ -->
+<section id="references">
+  <div class="ch-head"><span class="ch-num">—</span><h2>參考資料</h2></div>
+  <ul class="refs">
+    <li><a href="https://www.w3.org/TR/webauthn-2/">W3C Web Authentication Level 2</a>：§5.8.1 clientDataJSON、§6.1 authenticatorData、§7.1 註冊驗證、§7.2 登入驗證</li>
+    <li><a href="https://csrc.nist.gov/pubs/fips/204/final">NIST FIPS 204：ML-DSA</a></li>
+    <li><a href="https://www.rfc-editor.org/rfc/rfc9964.html">RFC 9964：ML-DSA for JOSE and COSE</a></li>
+    <li><a href="https://falcon-sign.info/">Falcon 官方網站與第三輪規格 v1.2</a></li>
+    <li><a href="https://www.ietf.org/archive/id/draft-ietf-cose-falcon-04.html">draft-ietf-cose-falcon-04：FN-DSA for JOSE and COSE</a></li>
+    <li><a href="https://csrc.nist.gov/projects/post-quantum-cryptography">NIST 後量子密碼專案</a>、<a href="https://csrc.nist.gov/pubs/ir/8547/final">NIST IR 8547</a></li>
+    <li><a href="https://github.com/open-quantum-safe/liboqs">liboqs（Open Quantum Safe）</a></li>
+  </ul>
+</section>
+
+</main>
+</div>
+
+<footer>這份導覽放在 <code>codex/PROTOCOL-GUIDE.html</code>，可以直接用瀏覽器開啟。程式或流程有變動時，請一併更新這份文件。最後更新：2026-11-16。</footer>
+
+</div>
+</div>
+
+<script>
+// ===== 註冊／登入流程圖：點選步驟或按「上一步／下一步」時，同步高亮圖上的箭頭與清單項目 =====
+document.querySelectorAll('[data-ceremony]').forEach((block) => {
+  // 清單中的每個步驟（li）與圖上對應的箭頭群組（g），都用 data-step 編號互相對應
+  const items = Array.from(block.querySelectorAll('li[data-step]'));
+  const marks = Array.from(block.querySelectorAll('g[data-step]'));
+  const counter = block.querySelector('.step-count');
+  const total = items.length;
+  let current = 1;
+
+  // 把第 step 步設為目前步驟：超出範圍時夾在 1 到 total 之間，並更新「第 N 步」的文字
+  function show(step) {
+    current = Math.min(Math.max(step, 1), total);
+    items.forEach((li) => li.classList.toggle('is-active', Number(li.dataset.step) === current));
+    marks.forEach((g) => g.classList.toggle('is-active', Number(g.dataset.step) === current));
+    if (counter) counter.textContent = `第 ${current} 步，共 ${total} 步`;
+  }
+
+  block.querySelector('[data-action="prev"]').addEventListener('click', () => show(current - 1));
+  block.querySelector('[data-action="next"]').addEventListener('click', () => show(current + 1));
+
+  // 清單項目可以用滑鼠點選，也可以用鍵盤的 Enter 或空白鍵選取（方便只用鍵盤閱讀的人）
+  items.forEach((li) => {
+    li.addEventListener('click', () => show(Number(li.dataset.step)));
+    li.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        show(Number(li.dataset.step));
+      }
+    });
+  });
+
+  show(1);
+});
+
+// ===== authenticatorData 欄位圖：點選色塊或表格列時，標出同一個欄位的色塊與表格列 =====
+const fieldElements = Array.from(document.querySelectorAll('[data-field]'));
+function highlightField(name) {
+  fieldElements.forEach((el) => el.classList.toggle('is-active', el.dataset.field === name));
+}
+fieldElements.forEach((el) => el.addEventListener('click', () => highlightField(el.dataset.field)));
+
+// ===== 名詞表搜尋：比對名詞與說明文字（不分大小寫），隱藏不符合的名詞與整組都沒結果的分類 =====
+const searchInput = document.getElementById('glossary-search');
+const terms = Array.from(document.querySelectorAll('.term'));
+const groups = Array.from(document.querySelectorAll('.term-group'));
+const emptyMessage = document.getElementById('glossary-empty');
+searchInput.addEventListener('input', () => {
+  const query = searchInput.value.trim().toLowerCase();
+  let shown = 0;
+  terms.forEach((term) => {
+    const hit = query === '' || term.textContent.toLowerCase().includes(query);
+    term.hidden = !hit;
+    if (hit) shown += 1;
+  });
+  groups.forEach((group) => {
+    group.hidden = group.querySelector('.term:not([hidden])') === null;
+  });
+  emptyMessage.hidden = shown !== 0;
+});
+
+// ===== 指令的「複製」按鈕：優先寫入剪貼簿；瀏覽器拒絕時，改成選取文字讓使用者自己按複製 =====
+document.querySelectorAll('.copy-btn').forEach((button) => {
+  button.addEventListener('click', async () => {
+    const code = button.closest('.cmd').querySelector('code');
+    try {
+      await navigator.clipboard.writeText(code.textContent);
+      button.textContent = '已複製';
+    } catch {
+      const range = document.createRange();
+      range.selectNodeContents(code);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      button.textContent = '已選取';
+    }
+    setTimeout(() => { button.textContent = '複製'; }, 1600);
+  });
+});
+
+// ===== 目錄：捲動時標出目前讀到的章節（章節進入畫面上方 20%～30% 的區域時切換） =====
+const tocLinks = new Map(
+  Array.from(document.querySelectorAll('.toc a')).map((a) => [a.getAttribute('href').slice(1), a])
+);
+if ('IntersectionObserver' in window) {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      tocLinks.forEach((a) => a.classList.remove('is-current'));
+      const link = tocLinks.get(entry.target.id);
+      if (link) link.classList.add('is-current');
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('main section[id]').forEach((section) => observer.observe(section));
+}
+</script>

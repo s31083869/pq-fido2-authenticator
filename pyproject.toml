@@ -25,3 +25,8 @@ dev = [
     "pytest>=8.4.2",
     "ruff>=0.14.4",
 ]
+
+[tool.pytest.ini_options]
+# 只在專案自己的測試資料夾找測試。沒有這個設定時，在根目錄執行 pytest 會掃進
+# extension/emsdk 裡第三方套件的範例程式並執行它們（曾因此在根目錄產生多餘檔案）。
+testpaths = ["authenticator/tests", "rp_server/tests"]

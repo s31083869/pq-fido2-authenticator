@@ -18,7 +18,9 @@ class AuthenticatorSettings(BaseSettings):
     )
     credential_index_path: str = Field(
         default=str(
-            (Path(__file__).resolve().parent / "data" / "credential_index.json").resolve()
+            (
+                Path(__file__).resolve().parent / "data" / "credential_index.json"
+            ).resolve()
         ),
         description="Path to the credential index file used for lookups",
     )

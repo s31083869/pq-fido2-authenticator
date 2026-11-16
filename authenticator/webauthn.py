@@ -37,7 +37,9 @@ def build_authenticator_data(
     flags = FLAG_UP
     if user_verified:
         flags |= FLAG_UV
-    include_attestation = credential_id is not None and credential_public_key is not None
+    include_attestation = (
+        credential_id is not None and credential_public_key is not None
+    )
     if include_attestation:
         flags |= FLAG_AT
 

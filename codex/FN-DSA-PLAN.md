@@ -3,9 +3,10 @@
 | 項目 | 內容 |
 |---|---|
 | 建立日期 | 2026-11-13 |
-| 分支 | 每天一個分支（`day-01`、`day-02`…），完成後合併回 `main`；Day 0 使用 `feature/fn-dsa-integration` |
-| 依據 | [workflow.md](../workflow.md)、[FALCON_INTEGRATION_HANDOVER.md](docs/FALCON_INTEGRATION_HANDOVER.md) |
+| 分支 | 每天一個分支（`day-01`、`day-02`…），Claude 開 PR，由使用者在 GitHub 合併；Day 0 使用 `feature/fn-dsa-integration` |
+| 依據 | [workflow.md](../workflow.md)、[FALCON_INTEGRATION_HANDOVER.md](docs/FALCON_INTEGRATION_HANDOVER.md)、[CLAUDE.md](../CLAUDE.md)（協作守則） |
 | 工作量 | 每天約 3 小時，共 12 天（Day 1–Day 12） |
+| 日期調整 | 11/16 起整體順延 2 天：Day 1 = 11/16，Day 12 = 11/27 |
 | 狀態 | 已確認（第 3 節的設計決策 D1–D6 已於 2026-11-13 確認） |
 
 ---
@@ -63,62 +64,61 @@
 
 ## 4. 每日計畫（Plan）
 
-### 每天 3 小時的進行方式
-1. 約 15 分鐘：回顧前一天、確認今天的目標
-2. 約 2 小時：實作（Claude 寫程式，你審閱並提問）
-3. 約 30 分鐘：跑測試、commit、push 並合併回 `main`
-4. 約 15 分鐘：更新本文件的勾選狀態
+### 每天的進行方式
+依 [CLAUDE.md](../CLAUDE.md) 的「每日流程」進行：準備 → 寫開工文件 → 介紹與理解確認、核准測試案例 → commit 開工文件 → 逐項 TDD 實作並 commit → 完工紀錄與獨立審查 → Claude 開 PR，由使用者合併。每天的細節記在 `codex/worklog/day-NN.md`。
 
 ### Day 0｜11/13：準備（已完成）
 - [x] 建立分支 `feature/fn-dsa-integration`
 - [x] 撰寫本計畫
 - [x] 改為每日分支、每日合併的流程（見第 8 節）
 
-### Day 1｜11/14：前置修正
-- [ ] 在 `pyproject.toml` 設定 pytest 的 `testpaths`（0.5h）
+### Day 1｜11/16：守則與工具設定 + 前置修正（已完成，詳見 `codex/worklog/day-01.md`）
+- [x] 在 `pyproject.toml` 設定 pytest 的 `testpaths`
   - 原因：在根目錄直接跑 `pytest` 會掃到並執行 `extension/emsdk` 內第三方套件的範例程式（2026-11-13 曾因此在根目錄產生 `test_localsystem.txt`）
-- [ ] RP 驗章改用收到的原始 `clientDataJSON` bytes 計算 hash，並補測試（1h）
-- [ ] Python authenticator：`allowCredentials` 比對不到時回傳錯誤（符合 Phase-1 spec 6.2），並補測試；修正不存在的 `self.settings.origin`（1h）
-- [ ] 在 `codex/REPORTS.md` 的 Decision Log 補記 D1–D6（0.5h）
+- [x] RP 驗章改用收到的原始 `clientDataJSON` bytes 計算 hash，並補測試
+- [x] Python authenticator：`allowCredentials` 比對不到時回傳錯誤（符合 Phase-1 spec 6.2），並補測試；修正不存在的 `self.settings.origin`
+- [x] 在 `codex/REPORTS.md` 的 Decision Log 補記 D1–D6
+- [x] （11/16 新增）建立協作守則 `CLAUDE.md`、協議導覽 `codex/PROTOCOL-GUIDE.html`、ruff 統一排版、GitHub Actions CI
+- [x] （11/16 追加，依獨立審查，使用者決定當天修正）兩個既有的安全問題：credential ID 必須完全相同才算同一張憑證；bridge 的 origin 改取自頁面的真實網址
 
-**完成標準**：所有既有測試通過，ML-DSA 行為不變。
+**完成標準**：所有既有測試通過，ML-DSA 行為不變。結果：Python 測試由 14 個增為 32 個，全部通過。
 
-### Day 2｜11/15：F01 + F02 共用演算法表
+### Day 2｜11/17：F01 + F02 共用演算法表
 - [ ] 建立 `shared/pq-algorithms.json`，五個演算法的欄位：`label`、`coseAlg`、`oqsName`、公鑰／私鑰／簽章大小、簽章長度是否固定、`status`（1h）
 - [ ] Python 讀取模組，RP 與 authenticator 共用（1h）
 - [ ] 測試：表內大小等於 liboqs 實際大小；COSE 編號不重複（1h）
 
 **完成標準**：Python 兩端的 mapping 都改從共用表讀取，既有測試通過。
 
-### Day 3｜11/16：F03 + F04 RP Server
+### Day 3｜11/18：F03 + F04 RP Server
 - [ ] `hosted_algorithms` 加入 -54/-55（0.5h）
 - [ ] 註冊時允許 `credentialPublicKey[3]` 為 -54/-55，驗章時從共用表取得 liboqs 名稱（1h）
 - [ ] 測試：`/register/options` 包含 -54/-55；FN-DSA 憑證可存入 DB 並驗章成功（1.5h）
 
 **完成標準**：RP 能宣告、接受並驗證 FN-DSA。
 
-### Day 4｜11/17：F05 + F06 + F16 Python Authenticator
+### Day 4｜11/19：F05 + F06 + F16 Python Authenticator
 - [ ] COSE → liboqs 對應改用共用表，-54/-55 可產生金鑰與簽章（1h）
 - [ ] 確認產生的 `credentialPublicKey` 為 `{1: 7, 3: -54, -1: 公鑰}`（0.5h）
 - [ ] 測試：`[-54]`、`[-55]`、`[-7, -54]` 的選擇結果；不支援時拒絕；RP 沒宣告 FN-DSA 時不得選用（1.5h）
 
 **完成標準**：authenticator 嚴格依照 RP 的 `pubKeyCredParams` 選擇演算法。
 
-### Day 5｜11/18：Python 路線整合 + 前端
+### Day 5｜11/20：Python 路線整合 + 前端
 - [ ] pytest 整合測試：authenticator ↔ RP 完整註冊 + 登入，五種演算法都跑（1.5h）
 - [ ] 前端選單加入 FN-DSA；排序只在 RP 有宣告的演算法中進行（目前會把使用者選的演算法硬塞到最前面）（1h）
 - [ ] 手動端到端：-54、-55 各跑一次註冊 + 登入，並檢查 DB 的 `algorithm` 欄位（0.5h）
 
 **完成標準**：Python bridge 路線的 FN-DSA 端到端成功（F17 前半）。
 
-### Day 6｜11/19：F07–F10 Extension TypeScript 層
+### Day 6｜11/21：F07–F10 Extension TypeScript 層
 - [ ] `SupportedAlg` 型別、設定、options 選單加入 -54/-55（1h）
 - [ ] `SUPPORTED_ALGORITHMS`、`toSupportedAlg()`、`selectAlgorithm()`、長度常數改用共用表（1h）
 - [ ] bun 測試：`[-7, -54]` 選到 -54；`credentialPublicKey[3] === -54`；簽章長度以上限處理（1h）
 
 **完成標準**：TypeScript 型別檢查與 bun 測試通過。
 
-### Day 7｜11/20：F11 + F12 WASM
+### Day 7｜11/22：F11 + F12 WASM
 - [ ] `pq_bridge.c` 加入 -54 → `Falcon-512`、-55 → `Falcon-1024`（0.5h）
 - [ ] 編譯清單加入 `SIG_falcon_512;SIG_falcon_1024`，`LIBOQS_REF` 固定版本（0.5h）
 - [ ] 重建 `liboqs.a`、`pq_bridge.wasm` 與 extension（1h）
@@ -126,31 +126,31 @@
 
 **完成標準**：`pq_bridge.wasm` 可產生 Falcon 金鑰與簽章。
 
-### Day 8｜11/21：Extension 開放 localhost + WASM KAT
+### Day 8｜11/23：Extension 開放 localhost + WASM KAT
 - [ ] manifest 與 `isTrustedSender()` 開放 `http://localhost:3000`（僅開發用）（1h）
 - [ ] WASM 版 Falcon 跑官方 KAT 比對（2h）
 
 **完成標準**：WASM 版 Falcon 與官方 KAT 一致。
 
-### Day 9｜11/22：Extension 路線端到端（F17 後半）
+### Day 9｜11/24：Extension 路線端到端（F17 後半）
 - [ ] 載入 extension，對本機 RP 跑 -54、-55 的註冊 + 登入（2h）
 - [ ] 檢查 `chrome.storage` 與 DB 的 `algorithm`（1h）
 
 **完成標準**：Extension 路線的 FN-DSA 端到端成功。
 
-### Day 10｜11/23：F13–F16 測試補強
+### Day 10｜11/25：F13–F16 測試補強
 - [ ] 官方 KAT 測試納入專案（只存雜湊值，不放 3 MB 的 KAT 檔）（1.5h）
 - [ ] 補齊缺少的選擇／註冊／登入／負向測試，跑全部測試（1.5h）
 
 **完成標準**：workflow.md F13–F16 的驗收標準都有對應測試。
 
-### Day 11｜11/24：F18 文件同步 + F19 安全 backlog
-- [ ] 同步 README、交接文件、`codex/REPORTS.md`、`codex/ARCHITECTURE_EXPLAINED.md`（2h）
+### Day 11｜11/26：F18 文件同步 + F19 安全 backlog
+- [ ] 同步 README、交接文件、`codex/REPORTS.md`、`codex/ARCHITECTURE_EXPLAINED.md`、協議導覽 `codex/PROTOCOL-GUIDE.html`（2h）
 - [ ] 檢視安全 backlog，記錄 FN-DSA 相關風險（1h）
 
 **完成標準**：文件與程式的支援狀態一致。
 
-### Day 12｜11/25：緩衝與收尾
+### Day 12｜11/27：緩衝與收尾
 - [ ] 回歸測試：ML-DSA 與 FN-DSA、兩條路線都跑一次（1.5h）
 - [ ] 確認 `main` 上是最終版本，整理成果與報告素材（1.5h）
 
@@ -204,9 +204,10 @@
 
 ## 8. 分支與提交方式
 
-- 每天開始時，從最新的 `main` 開一個當天的分支，例如 `day-01`
-- 當天的工作完成、測試通過後 commit，訊息格式為 `Day N: 今天做了什麼`，例如 `Day 1: 設定 pytest testpaths、修正 RP 的 clientDataJSON hash`
-- push 當天的分支到 GitHub，再合併回 `main` 並 push
+- 每天開始時，確認前一個 Day 已合併，再從最新的 `origin/main` 開一個當天的分支，例如 `day-01`
+- 每完成一個項目就 commit 一次，訊息格式為 `Day N: 這一項做了什麼`，例如 `Day 1: 設定 pytest testpaths，只收集專案自己的測試`
+- 當天的工作全部完成後 push 分支，由 Claude 用 `gh` 開 PR；CI 通過後由使用者在 GitHub 合併回 `main`
+- 完整規則見 [CLAUDE.md](../CLAUDE.md)
 
 ---
 

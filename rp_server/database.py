@@ -17,7 +17,9 @@ class Base(DeclarativeBase):
 class Database:
     def __init__(self, settings: RPSettings):
         self.engine = create_engine(settings.database_url, future=True)
-        self.SessionLocal = sessionmaker(self.engine, expire_on_commit=False, future=True)
+        self.SessionLocal = sessionmaker(
+            self.engine, expire_on_commit=False, future=True
+        )
 
     def create_all(self) -> None:
         Base.metadata.create_all(self.engine)

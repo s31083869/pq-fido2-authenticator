@@ -4,15 +4,20 @@ from __future__ import annotations
 
 import ctypes
 import json
+import re
 import sys
 import threading
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, List, Optional
 
 import keyring
 
 from .config import AuthenticatorSettings
 from .models import CredentialRecord, CredentialRecordModel
+
+# 本專案的 credential ID 一律是 base64url 字串，只會出現 A–Z、a–z、0–9、「-」與「_」。
+# 含有其他字元（例如「.」「/」「\」）的 ID 一定不是本 authenticator 建立的，直接視為找不到。
+_CREDENTIAL_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
 
 
 class CredentialStoreError(RuntimeError):
@@ -108,13 +113,30 @@ class CredentialStore:
         self._remove_from_index(credential_id)
 
     def load(self, credential_id: str) -> CredentialRecord:
+        """依 credential ID 讀出一張憑證（含私鑰）；找不到時丟出 CredentialStoreError。
+
+        credential ID 必須完全相同才算同一張憑證（WebAuthn 把 ID 視為不透明的 bytes）。
+        Windows 的檔案系統比對檔名時不分大小寫，大小寫不同的 ID 會開到同一個檔案，
+        所以讀出之後，還要比對檔案內記錄的 ID 是否和要找的完全相同。
+
+        參數：
+            credential_id：要讀取的憑證 ID，來自 allowCredentials 或 excludeCredentials。
+                這是 RP 或頁面送來的值；經由 Python bridge，任何網站都能直接送出任意 ID，因此不可信任。
+
+        回傳：
+            讀出的憑證紀錄。
+        """
         if self.backend == "file":
             serialized = self._load_file(credential_id)
         else:
             serialized = keyring.get_password(self.service, credential_id)
         if serialized is None:
             raise CredentialStoreError(f"Credential {credential_id} not found")
-        return CredentialRecord.from_model(CredentialRecordModel.decode(serialized))
+        record = CredentialRecord.from_model(CredentialRecordModel.decode(serialized))
+        # 檔案內記錄的 ID 和要找的不同（例如只差大小寫），就當作沒有這張憑證
+        if record.credential_id != credential_id:
+            raise CredentialStoreError(f"Credential {credential_id} not found")
+        return record
 
     def list_all(self) -> List[CredentialRecord]:
         index = self._read_index()
@@ -136,14 +158,6 @@ class CredentialStore:
                 matches.append(self.load(credential_id))
         return matches
 
-    def find_first(self, allow_credentials: Iterable[str]) -> Optional[CredentialRecord]:
-        for cred_id in allow_credentials:
-            try:
-                return self.load(cred_id)
-            except CredentialStoreError:
-                continue
-        return None
-
     def list_metadata(self) -> Dict[str, Dict[str, str]]:
         with self._lock:
             index = self._read_index()
@@ -151,6 +165,21 @@ class CredentialStore:
 
     # File backend ------------------------------------------------------
     def _credential_file(self, credential_id: str) -> Path:
+        """回傳某張憑證的加密檔路徑：<憑證資料夾>/<credential ID>.bin。
+
+        credential ID 是 RP 或頁面送來的值（經由 Python bridge，任何網站都能送出任意 ID），
+        必須在碰到檔案系統之前，先確認它只含 base64url 字元。否則「../」、絕對路徑、
+        「//主機/共用資料夾」這類網路路徑，都會讓路徑跳出憑證資料夾：讀到其他檔案，
+        或在 Windows 上連線到外部主機。load() 讀出後的 ID 比對發生在讀檔之後，擋不住這一點。
+
+        參數：
+            credential_id：憑證 ID。
+
+        回傳：
+            加密檔的路徑；ID 含有不合法的字元時丟出 CredentialStoreError（視為找不到）。
+        """
+        if not _CREDENTIAL_ID_PATTERN.fullmatch(credential_id):
+            raise CredentialStoreError(f"Credential {credential_id} not found")
         return self.file_store_path / f"{credential_id}.bin"
 
     def _save_file(self, credential_id: str, serialized: str) -> None:
@@ -171,7 +200,9 @@ def _protect_bytes(data: bytes) -> bytes:
     crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     in_buffer = ctypes.create_string_buffer(data)
-    in_blob = _DATA_BLOB(len(data), ctypes.cast(in_buffer, ctypes.POINTER(ctypes.c_ubyte)))
+    in_blob = _DATA_BLOB(
+        len(data), ctypes.cast(in_buffer, ctypes.POINTER(ctypes.c_ubyte))
+    )
     out_blob = _DATA_BLOB()
 
     if not crypt32.CryptProtectData(
@@ -183,7 +214,9 @@ def _protect_bytes(data: bytes) -> bytes:
         0,
         ctypes.byref(out_blob),
     ):
-        raise CredentialStoreError(f"DPAPI CryptProtectData failed: {ctypes.get_last_error()}")
+        raise CredentialStoreError(
+            f"DPAPI CryptProtectData failed: {ctypes.get_last_error()}"
+        )
 
     try:
         return bytes(ctypes.string_at(out_blob.pbData, out_blob.cbData))
@@ -198,7 +231,9 @@ def _unprotect_bytes(data: bytes) -> bytes:
     crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     in_buffer = ctypes.create_string_buffer(data)
-    in_blob = _DATA_BLOB(len(data), ctypes.cast(in_buffer, ctypes.POINTER(ctypes.c_ubyte)))
+    in_blob = _DATA_BLOB(
+        len(data), ctypes.cast(in_buffer, ctypes.POINTER(ctypes.c_ubyte))
+    )
     out_blob = _DATA_BLOB()
 
     if not crypt32.CryptUnprotectData(
@@ -210,7 +245,9 @@ def _unprotect_bytes(data: bytes) -> bytes:
         0,
         ctypes.byref(out_blob),
     ):
-        raise CredentialStoreError(f"DPAPI CryptUnprotectData failed: {ctypes.get_last_error()}")
+        raise CredentialStoreError(
+            f"DPAPI CryptUnprotectData failed: {ctypes.get_last_error()}"
+        )
 
     try:
         return bytes(ctypes.string_at(out_blob.pbData, out_blob.cbData))

@@ -75,7 +75,9 @@ def _build_payload(req: str, **fields: object) -> dict[str, object]:
     return payload
 
 
-def _log(stage: str, event: str, req: str, level: int = logging.INFO, **fields: object) -> None:
+def _log(
+    stage: str, event: str, req: str, level: int = logging.INFO, **fields: object
+) -> None:
     stage_label = STAGE_LABELS.get(stage, stage.title())
     event_label = EVENT_LABELS.get((stage, event), event)
     payload = json.dumps(_build_payload(req, **fields), indent=2, sort_keys=True)
@@ -98,7 +100,13 @@ def create_app(settings: RPSettings | None = None) -> Flask:
     def register_options():
         payload = RegisterOptionsRequest.model_validate(request.get_json() or {})
         req_id = secrets.token_hex(4)
-        _log("register", "options.start", req_id, user=payload.username, display=payload.display_name)
+        _log(
+            "register",
+            "options.start",
+            req_id,
+            user=payload.username,
+            display=payload.display_name,
+        )
         with db.session() as session:
             user = get_user(session, payload.username)
             if user:
@@ -107,7 +115,13 @@ def create_app(settings: RPSettings | None = None) -> Flask:
             else:
                 user_handle = new_user_handle(session)
                 credentials = []
-            _log("register", "user.resolve", req_id, user_id=user.id if user else None, user_handle=user_handle)
+            _log(
+                "register",
+                "user.resolve",
+                req_id,
+                user_id=user.id if user else None,
+                user_handle=user_handle,
+            )
         challenge = challenge_cache.issue(
             "register",
             payload.username,
@@ -147,7 +161,9 @@ def create_app(settings: RPSettings | None = None) -> Flask:
             user_handle=user_handle,
             credential_count=len(credentials),
         )
-        return jsonify(RPResponse(success=True, data=response.model_dump()).model_dump())
+        return jsonify(
+            RPResponse(success=True, data=response.model_dump()).model_dump()
+        )
 
     @app.post("/register/verify")
     def register_verify():
@@ -156,8 +172,16 @@ def create_app(settings: RPSettings | None = None) -> Flask:
         _log("register", "verify.start", req_id, user=payload.username)
         challenge_record = challenge_cache.pop_record("register", payload.username)
         if not challenge_record:
-            _log("register", "verify.expired", req_id, user=payload.username, level=logging.WARNING)
-            return jsonify(RPResponse(success=False, message="Challenge expired").model_dump()), 400
+            _log(
+                "register",
+                "verify.expired",
+                req_id,
+                user=payload.username,
+                level=logging.WARNING,
+            )
+            return jsonify(
+                RPResponse(success=False, message="Challenge expired").model_dump()
+            ), 400
         credential_id, algorithm, public_key = verify_registration_payload(
             payload.credential,
             challenge_record.challenge,
@@ -172,8 +196,12 @@ def create_app(settings: RPSettings | None = None) -> Flask:
                     challenge_record.metadata.get("display_name", payload.username),
                     user_handle=challenge_record.metadata.get("user_handle"),
                 )
-            elif user.display_name != challenge_record.metadata.get("display_name", user.display_name):
-                user.display_name = challenge_record.metadata.get("display_name", user.display_name)
+            elif user.display_name != challenge_record.metadata.get(
+                "display_name", user.display_name
+            ):
+                user.display_name = challenge_record.metadata.get(
+                    "display_name", user.display_name
+                )
             store_credential(session, user, credential_id, public_key, algorithm)
             _log(
                 "register",
@@ -183,7 +211,7 @@ def create_app(settings: RPSettings | None = None) -> Flask:
                 user_handle=user.user_handle,
                 credential_id=credential_id,
                 algorithm=algorithm,
-        )
+            )
         return jsonify(RPResponse(success=True).model_dump())
 
     @app.post("/authenticate/options")
@@ -218,7 +246,9 @@ def create_app(settings: RPSettings | None = None) -> Flask:
                 )
                 return (
                     jsonify(
-                        RPResponse(success=False, message="No credential registered").model_dump()
+                        RPResponse(
+                            success=False, message="No credential registered"
+                        ).model_dump()
                     ),
                     400,
                 )
@@ -239,7 +269,9 @@ def create_app(settings: RPSettings | None = None) -> Flask:
             user=payload.username,
             credential_count=len(credentials),
         )
-        return jsonify(RPResponse(success=True, data=response.model_dump()).model_dump())
+        return jsonify(
+            RPResponse(success=True, data=response.model_dump()).model_dump()
+        )
 
     @app.post("/authenticate/verify")
     def authenticate_verify():
@@ -248,8 +280,16 @@ def create_app(settings: RPSettings | None = None) -> Flask:
         _log("authn", "verify.start", req_id, user=payload.username)
         challenge = challenge_cache.pop("authenticate", payload.username)
         if not challenge:
-            _log("authn", "verify.expired", req_id, user=payload.username, level=logging.WARNING)
-            return jsonify(RPResponse(success=False, message="Challenge expired").model_dump()), 400
+            _log(
+                "authn",
+                "verify.expired",
+                req_id,
+                user=payload.username,
+                level=logging.WARNING,
+            )
+            return jsonify(
+                RPResponse(success=False, message="Challenge expired").model_dump()
+            ), 400
         with db.session() as session:
             user = get_user(session, payload.username)
             if not user:
@@ -288,9 +328,7 @@ def create_app(settings: RPSettings | None = None) -> Flask:
     def handle_bad_request(error):
         message = getattr(error, "description", "Bad Request")
         return (
-            jsonify(
-                RPResponse(success=False, message=message).model_dump()
-            ),
+            jsonify(RPResponse(success=False, message=message).model_dump()),
             400,
         )
 
