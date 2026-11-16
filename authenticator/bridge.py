@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+from urllib.parse import urlsplit
 
 from playwright.async_api import (
     BrowserContext,
@@ -164,6 +165,30 @@ INJECT_SCRIPT = r"""
 """
 
 
+def _origin_from_url(url: Optional[str]) -> Optional[str]:
+    """從頁面網址取出 WebAuthn 的 origin：「協定://網域[:埠]」，不含路徑、查詢字串與帳密。
+
+    例如 http://localhost:3000/register?step=2 → http://localhost:3000。
+    frame.url 是瀏覽器整理過的網址：網域已轉成小寫、預設埠（http 的 80、https 的 443）已省略，
+    所以直接取協定和「網域＋埠」，就和瀏覽器算出的 origin 相同。
+
+    參數：
+        url：呼叫者所在 frame 的網址。
+
+    回傳：
+        origin 字串；網址是空的或沒有網域（例如 about:blank）時回傳 None，
+        交給 authenticator 以「Missing origin」拒絕，因為這種頁面沒有可以綁定憑證的網站。
+    """
+    if not url:
+        return None
+    parts = urlsplit(url)
+    if not parts.scheme or not parts.netloc:
+        return None
+    # netloc 可能帶有「帳號:密碼@」，origin 不包含這一段，只留最後一個 @ 之後的網域與埠
+    host_and_port = parts.netloc.rpartition("@")[2]
+    return f"{parts.scheme}://{host_and_port}"
+
+
 class PlaywrightBridge:
     """Launches Chromium, injects interception scripts, and bridges to Authenticator."""
 
@@ -218,18 +243,50 @@ class PlaywrightBridge:
     async def _install_on_page(self, page: Page) -> None:
         await page.add_init_script(INJECT_SCRIPT)
 
-    async def _handle_make(self, _source, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_make(
+        self, source: Dict[str, Any], payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """處理頁面的 navigator.credentials.create()（註冊），交給 authenticator 建立憑證。
+
+        origin 取自呼叫者 frame 的真實網址，不採用 payload 裡頁面自稱的 origin：
+        WebAuthn §5.8.1 規定 clientDataJSON 的 origin 由瀏覽器依呼叫者的真實來源填入，
+        網頁無法指定。bridge 在這裡扮演瀏覽器，若相信頁面自稱的值，惡意網站只要聲稱自己是
+        http://localhost:3000，就能替本站建立憑證。
+
+        參數：
+            source：Playwright 附上的呼叫者資訊，"frame" 是發出呼叫的 frame。
+            payload：頁面傳來的資料，"publicKey" 是序列化後的 PublicKeyCredentialCreationOptions。
+
+        回傳：
+            序列化後的 PublicKeyCredential（含 attestationObject），由注入腳本組回憑證物件交給頁面。
+        """
         loop = asyncio.get_running_loop()
-        origin = payload.get("origin")
+        origin = _origin_from_url(source["frame"].url)
         options = payload.get("publicKey", payload)
+        # make_credential 會等待 Windows Hello 驗證，放到執行緒池執行，避免卡住 Playwright 的事件迴圈
         return await loop.run_in_executor(
             None, self.authenticator.make_credential, options, origin
         )
 
-    async def _handle_get(self, _source, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_get(
+        self, source: Dict[str, Any], payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """處理頁面的 navigator.credentials.get()（登入），交給 authenticator 產生簽章。
+
+        origin 的取法和 _handle_make() 相同，理由也相同：若相信頁面自稱的 origin，
+        惡意網站就能取得本站憑證的簽章，拿去冒充使用者登入。
+
+        參數：
+            source：Playwright 附上的呼叫者資訊，"frame" 是發出呼叫的 frame。
+            payload：頁面傳來的資料，"publicKey" 是序列化後的 PublicKeyCredentialRequestOptions。
+
+        回傳：
+            序列化後的 PublicKeyCredential（含 authenticatorData 與 signature），由注入腳本組回憑證物件交給頁面。
+        """
         loop = asyncio.get_running_loop()
-        origin = payload.get("origin")
+        origin = _origin_from_url(source["frame"].url)
         options = payload.get("publicKey", payload)
+        # get_assertion 會等待 Windows Hello 驗證，放到執行緒池執行，避免卡住 Playwright 的事件迴圈
         return await loop.run_in_executor(
             None, self.authenticator.get_assertion, options, origin
         )
