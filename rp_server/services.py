@@ -173,7 +173,8 @@ def verify_authentication_payload(
         abort(400, "rpId hash mismatch")
 
     # 重組簽章輸入：authenticatorData ‖ SHA-256(clientDataJSON 原始 bytes)。
-    # 不能把 JSON 解析後重新序列化：空白或欄位順序一變，bytes 就和被簽章的內容不同。
+    # 不能把 JSON 解析後重新序列化：重新序列化會改變空白與跳脫字元的寫法、合併重複欄位，
+    # bytes 就和被簽章的內容不同（欄位順序則會被 json.loads／json.dumps 保留）。
     message = auth_data_bytes + hashlib.sha256(client_data_json).digest()
     signature = _b64url_to_bytes(response.get("signature"))
 

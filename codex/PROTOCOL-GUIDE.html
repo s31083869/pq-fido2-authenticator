@@ -766,7 +766,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <div class="two-col">
     <div class="note">
       <div class="note-label">為什麼要用「原始 bytes」算 hash？</div>
-      <p>簽章保護的是 authenticator 送出的那串 bytes。如果 RP 先把 JSON 解析成物件，再自己重新組回去，只要空白或欄位順序稍有不同，算出來的 hash 就對不上，合法的簽章也會被當成無效。RP 原本就是這樣重組的，這是 Day 1 修正的項目。</p>
+      <p>簽章保護的是 authenticator 送出的那串 bytes。如果 RP 先把 JSON 解析成物件，再自己重新組回去，空白、跳脫字元這類寫法就可能和原本不同（欄位順序倒是會被保留），算出來的 hash 就對不上，合法的簽章也會被當成無效。RP 原本就是這樣重組的，這是 Day 1 修正的項目。</p>
     </div>
     <div class="note">
       <div class="note-label">signCount 的用途</div>

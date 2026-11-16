@@ -166,7 +166,8 @@ def test_get_assertion_rejects_when_no_allowed_credential_is_stored(authenticato
     # RP 的清單只允許一把 authenticator 沒有的憑證 B
     request_options = make_request_options("credential-b-not-stored")
 
-    with pytest.raises(CredentialStoreError):
+    # 鎖定拒絕原因是「找不到可用的憑證」，避免其他原因（例如解密失敗）丟出同一種錯誤時誤判通過
+    with pytest.raises(CredentialStoreError, match="No credential available"):
         authenticator.get_assertion(request_options, origin="https://example.com")
 
 
@@ -184,7 +185,7 @@ def test_get_assertion_rejects_allowed_credential_from_another_site(authenticato
     # 登入 example.com 時，RP 的清單卻列出屬於 other.com 的憑證 C
     request_options = make_request_options(credential_c["id"])
 
-    with pytest.raises(CredentialStoreError):
+    with pytest.raises(CredentialStoreError, match="No credential available"):
         authenticator.get_assertion(request_options, origin="https://example.com")
 
 
@@ -219,7 +220,8 @@ def test_missing_origin_raises_clear_error(authenticator, operation):
         else make_request_options("any-credential")
     )
 
-    with pytest.raises(ValueError, match="origin"):
+    # 訊息必須以「Missing origin」開頭：只比對「origin」不夠，_origin_host() 的「Invalid origin」也會符合
+    with pytest.raises(ValueError, match="^Missing origin"):
         getattr(authenticator, operation)(options)
 
 

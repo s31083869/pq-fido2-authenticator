@@ -96,10 +96,11 @@ def test_verify_hashes_raw_client_data_json_bytes(rp) -> None:
 
     簽章是對這串原始 bytes 計算的。RP 如果把 JSON 解析後重新組回去再算雜湊，
     重組的 bytes 會少掉空白，雜湊就不同，合法的簽章會被誤判為無效。
+    （欄位順序不同本身不會造成差異：json.loads／json.dumps 會保留順序；造成差異的是空白。）
     """
     client, signer = rp
     challenge = _issue_challenge(client)
-    # 合法的 JSON，但冒號後有空格，而且欄位順序和 RP 重組的結果不同
+    # 合法的 JSON，但冒號後有空格；RP 若重新序列化會去掉這些空格，bytes 就和被簽章的不同
     client_data_json = (
         f'{{"origin": "http://localhost:3000", "type": "webauthn.get", '
         f'"challenge": "{challenge}"}}'

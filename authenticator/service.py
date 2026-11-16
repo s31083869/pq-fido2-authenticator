@@ -247,7 +247,7 @@ class Authenticator:
         )
         # 使用者驗證（Windows Hello／Touch ID），失敗會丟出 UserVerificationError 中止登入
         self._verify_user("Verify to continue sign-in")
-        # 只能使用 RP 清單中、屬於本站的憑證；挑不到就拒絕這次登入
+        # RP 有給清單時，只能用清單中屬於本站的憑證；清單為空時用本站的第一把；挑不到就拒絕這次登入
         record = self._locate_credential(options.allowCredentials, rp_id)
         if record is None:
             _log(
