@@ -206,6 +206,23 @@ def test_get_assertion_uses_site_credential_when_allow_list_is_empty(authenticat
     assert assertion["id"] == creation["id"]
 
 
+@pytest.mark.parametrize("operation", ["make_credential", "get_assertion"])
+def test_missing_origin_raises_clear_error(authenticator, operation):
+    """T6：呼叫時沒有提供 origin，要丟出指明缺少 origin 的 ValueError，而不是看不懂的 AttributeError。
+
+    依據：WebAuthn §5.8.1，origin 是 clientDataJSON 的必要欄位，沒有它就無法產生 clientDataJSON；
+    也不能自動填入預設值，否則其他網站的請求會被寫成本站的 origin。
+    """
+    options = (
+        make_creation_options()
+        if operation == "make_credential"
+        else make_request_options("any-credential")
+    )
+
+    with pytest.raises(ValueError, match="origin"):
+        getattr(authenticator, operation)(options)
+
+
 def _b64_to_bytes(data: str) -> bytes:
     padding = "=" * (-len(data) % 4)
     return b64decode(data + padding)
