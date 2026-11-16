@@ -60,7 +60,9 @@ def get_user(session: Session, username: str) -> User | None:
 
 
 def list_credentials(session: Session, user: User) -> List[Credential]:
-    return list(session.scalars(select(Credential).where(Credential.user_id == user.id)))
+    return list(
+        session.scalars(select(Credential).where(Credential.user_id == user.id))
+    )
 
 
 def store_credential(
@@ -151,14 +153,19 @@ def verify_authentication_payload(
     if parsed.get("rp_id_hash") != _rp_id_hash(settings.rp_id):
         abort(400, "rpId hash mismatch")
 
-    message = auth_data_bytes + hashlib.sha256(
-        json.dumps(client_data, separators=(",", ":")).encode("utf-8")
-    ).digest()
+    message = (
+        auth_data_bytes
+        + hashlib.sha256(
+            json.dumps(client_data, separators=(",", ":")).encode("utf-8")
+        ).digest()
+    )
     signature = _b64url_to_bytes(response.get("signature"))
 
     oqs_alg = _cose_to_oqs(credential.algorithm)
     with oqs.Signature(oqs_alg) as verifier:
-        valid = verifier.verify(message, signature, _b64url_to_bytes(credential.public_key))
+        valid = verifier.verify(
+            message, signature, _b64url_to_bytes(credential.public_key)
+        )
     if not valid:
         abort(400, "Invalid signature")
 

@@ -6,7 +6,12 @@ import asyncio
 import logging
 from typing import Any, Dict
 
-from playwright.async_api import BrowserContext, Error as PlaywrightError, Page, async_playwright
+from playwright.async_api import (
+    BrowserContext,
+    Error as PlaywrightError,
+    Page,
+    async_playwright,
+)
 
 from .service import Authenticator
 
@@ -202,9 +207,13 @@ class PlaywrightBridge:
     async def _prepare_context(self, context: BrowserContext) -> None:
         await context.expose_binding("__pqMakeCredential", self._handle_make)
         await context.expose_binding("__pqGetAssertion", self._handle_get)
-        await context.expose_binding("__pqListCredentials", self._handle_list_credentials)
+        await context.expose_binding(
+            "__pqListCredentials", self._handle_list_credentials
+        )
         await context.add_init_script(INJECT_SCRIPT)
-        context.on("page", lambda page: asyncio.create_task(self._install_on_page(page)))
+        context.on(
+            "page", lambda page: asyncio.create_task(self._install_on_page(page))
+        )
 
     async def _install_on_page(self, page: Page) -> None:
         await page.add_init_script(INJECT_SCRIPT)
@@ -225,7 +234,11 @@ class PlaywrightBridge:
             None, self.authenticator.get_assertion, options, origin
         )
 
-    async def _handle_list_credentials(self, _source, _payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+    async def _handle_list_credentials(
+        self, _source, _payload: Dict[str, Any] | None = None
+    ) -> Dict[str, Any]:
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, self.authenticator.list_credentials_metadata)
+        result = await loop.run_in_executor(
+            None, self.authenticator.list_credentials_metadata
+        )
         return {"credentials": result}

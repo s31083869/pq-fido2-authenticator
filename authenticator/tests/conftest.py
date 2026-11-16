@@ -31,7 +31,9 @@ def fake_keyring(monkeypatch):
 
     monkeypatch.setattr("authenticator.storage.keyring.set_password", set_password)
     monkeypatch.setattr("authenticator.storage.keyring.get_password", get_password)
-    monkeypatch.setattr("authenticator.storage.keyring.delete_password", delete_password)
+    monkeypatch.setattr(
+        "authenticator.storage.keyring.delete_password", delete_password
+    )
     yield storage
 
 

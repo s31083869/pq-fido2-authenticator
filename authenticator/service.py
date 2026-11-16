@@ -69,7 +69,9 @@ def _build_payload(req: str, **fields: object) -> dict[str, object]:
     return payload
 
 
-def _log(stage: str, event: str, req: str, level: int = logging.INFO, **fields: object) -> None:
+def _log(
+    stage: str, event: str, req: str, level: int = logging.INFO, **fields: object
+) -> None:
     stage_label = STAGE_LABELS.get(stage, stage.title())
     event_label = EVENT_LABELS.get((stage, event), event)
     payload = json.dumps(_build_payload(req, **fields), indent=2, sort_keys=True)
@@ -141,7 +143,9 @@ class Authenticator:
         )
         self.store.save(record)
 
-        client_data = self._build_client_data("webauthn.create", options.challenge, resolved_origin)
+        client_data = self._build_client_data(
+            "webauthn.create", options.challenge, resolved_origin
+        )
         credential_id_bytes = b64url_decode(record.credential_id)
         credential_public_key = build_credential_public_key(record, alg)
         auth_data = build_authenticator_data(
@@ -169,7 +173,9 @@ class Authenticator:
             "rawId": record.credential_id,
             "type": "public-key",
             "authenticatorAttachment": "platform",
-            "clientExtensionResults": {"credProps": {"rk": False}} if include_cred_props else {},
+            "clientExtensionResults": {"credProps": {"rk": False}}
+            if include_cred_props
+            else {},
             "response": response.model_dump(),
         }
         _log(
@@ -211,8 +217,12 @@ class Authenticator:
             raise CredentialStoreError("No credential available for assertion")
         suite = PQCSignatureSuite(record.algorithm)
 
-        client_data = self._build_client_data("webauthn.get", options.challenge, resolved_origin)
-        client_data_json = json.dumps(client_data, separators=(",", ":")).encode("utf-8")
+        client_data = self._build_client_data(
+            "webauthn.get", options.challenge, resolved_origin
+        )
+        client_data_json = json.dumps(client_data, separators=(",", ":")).encode(
+            "utf-8"
+        )
         client_data_hash = hashlib.sha256(client_data_json).digest()
 
         new_sign_count = record.sign_count + 1
@@ -279,7 +289,9 @@ class Authenticator:
         return matches[0] if matches else None
 
     @staticmethod
-    def _build_client_data(credential_type: str, challenge: str, origin: str) -> Dict[str, object]:
+    def _build_client_data(
+        credential_type: str, challenge: str, origin: str
+    ) -> Dict[str, object]:
         return {
             "type": credential_type,
             "challenge": challenge,

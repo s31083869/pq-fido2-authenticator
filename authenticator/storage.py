@@ -136,7 +136,9 @@ class CredentialStore:
                 matches.append(self.load(credential_id))
         return matches
 
-    def find_first(self, allow_credentials: Iterable[str]) -> Optional[CredentialRecord]:
+    def find_first(
+        self, allow_credentials: Iterable[str]
+    ) -> Optional[CredentialRecord]:
         for cred_id in allow_credentials:
             try:
                 return self.load(cred_id)
@@ -171,7 +173,9 @@ def _protect_bytes(data: bytes) -> bytes:
     crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     in_buffer = ctypes.create_string_buffer(data)
-    in_blob = _DATA_BLOB(len(data), ctypes.cast(in_buffer, ctypes.POINTER(ctypes.c_ubyte)))
+    in_blob = _DATA_BLOB(
+        len(data), ctypes.cast(in_buffer, ctypes.POINTER(ctypes.c_ubyte))
+    )
     out_blob = _DATA_BLOB()
 
     if not crypt32.CryptProtectData(
@@ -183,7 +187,9 @@ def _protect_bytes(data: bytes) -> bytes:
         0,
         ctypes.byref(out_blob),
     ):
-        raise CredentialStoreError(f"DPAPI CryptProtectData failed: {ctypes.get_last_error()}")
+        raise CredentialStoreError(
+            f"DPAPI CryptProtectData failed: {ctypes.get_last_error()}"
+        )
 
     try:
         return bytes(ctypes.string_at(out_blob.pbData, out_blob.cbData))
@@ -198,7 +204,9 @@ def _unprotect_bytes(data: bytes) -> bytes:
     crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     in_buffer = ctypes.create_string_buffer(data)
-    in_blob = _DATA_BLOB(len(data), ctypes.cast(in_buffer, ctypes.POINTER(ctypes.c_ubyte)))
+    in_blob = _DATA_BLOB(
+        len(data), ctypes.cast(in_buffer, ctypes.POINTER(ctypes.c_ubyte))
+    )
     out_blob = _DATA_BLOB()
 
     if not crypt32.CryptUnprotectData(
@@ -210,7 +218,9 @@ def _unprotect_bytes(data: bytes) -> bytes:
         0,
         ctypes.byref(out_blob),
     ):
-        raise CredentialStoreError(f"DPAPI CryptUnprotectData failed: {ctypes.get_last_error()}")
+        raise CredentialStoreError(
+            f"DPAPI CryptUnprotectData failed: {ctypes.get_last_error()}"
+        )
 
     try:
         return bytes(ctypes.string_at(out_blob.pbData, out_blob.cbData))
