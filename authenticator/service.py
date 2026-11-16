@@ -281,10 +281,28 @@ class Authenticator:
         allow_credentials: List[PublicKeyCredentialDescriptor],
         rp_id: str,
     ) -> Optional[CredentialRecord]:
+        """挑出這次登入要用的憑證；挑不到時回傳 None，由呼叫端拒絕這次登入。
+
+        規則（Phase-1 spec 6.2、WebAuthn §6.3.3）：
+        - RP 有給 allowCredentials：只能從清單中挑，而且憑證必須屬於目前的 rpId；
+          清單裡一把都不符合就回傳 None，不可以改用清單以外的憑證。
+        - RP 沒給（清單為空）：使用這個 rpId 底下的第一把憑證。
+
+        參數：
+            allow_credentials：RP 指定這個帳號可以使用的憑證（含 credential ID）。
+            rp_id：目前登入的網站識別名稱。
+        """
         if allow_credentials:
-            record = self.store.find_first([cred.id for cred in allow_credentials])
-            if record:
-                return record
+            for descriptor in allow_credentials:
+                # authenticator 沒有這把憑證時，load() 會丟出 CredentialStoreError，改試下一把
+                try:
+                    record = self.store.load(descriptor.id)
+                except CredentialStoreError:
+                    continue
+                # 憑證綁定在註冊時的網站，屬於其他網站的憑證不能拿來登入這裡
+                if record.rp_id == rp_id:
+                    return record
+            return None
         matches = self.store.find_by_rp(rp_id)
         return matches[0] if matches else None
 

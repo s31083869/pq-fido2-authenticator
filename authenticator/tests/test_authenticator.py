@@ -156,6 +156,56 @@ def test_default_user_verifier_selects_platform(monkeypatch):
     assert isinstance(Authenticator._default_user_verifier(), NoopVerifier)
 
 
+def test_get_assertion_rejects_when_no_allowed_credential_is_stored(authenticator):
+    """T3：allowCredentials 列出的憑證一把都不在 authenticator 裡時，必須拒絕，不能改用其他憑證。
+
+    依據：Phase-1 spec 6.2（清單內找不到就中止）、WebAuthn §6.3.3 authenticatorGetAssertion。
+    """
+    # authenticator 裡只有 example.com 的憑證 A
+    authenticator.make_credential(make_creation_options(), origin="https://example.com")
+    # RP 的清單只允許一把 authenticator 沒有的憑證 B
+    request_options = make_request_options("credential-b-not-stored")
+
+    with pytest.raises(CredentialStoreError):
+        authenticator.get_assertion(request_options, origin="https://example.com")
+
+
+def test_get_assertion_rejects_allowed_credential_from_another_site(authenticator):
+    """T4：allowCredentials 指到的憑證屬於其他網站時必須拒絕，不能拿 A 網站的鑰匙登入 B 網站。
+
+    依據：Phase-1 spec 6.2（憑證必須在清單中，而且 rpId 相符）。
+    """
+    # 先在 other.com 註冊憑證 C
+    other_site_options = make_creation_options()
+    other_site_options["rp"] = {"id": "other.com", "name": "Other"}
+    credential_c = authenticator.make_credential(
+        other_site_options, origin="https://other.com"
+    )
+    # 登入 example.com 時，RP 的清單卻列出屬於 other.com 的憑證 C
+    request_options = make_request_options(credential_c["id"])
+
+    with pytest.raises(CredentialStoreError):
+        authenticator.get_assertion(request_options, origin="https://example.com")
+
+
+def test_get_assertion_uses_site_credential_when_allow_list_is_empty(authenticator):
+    """T5：allowCredentials 為空時，使用這個網站已存的憑證（回歸保護）。
+
+    依據：Phase-1 spec 6.2（清單為空時，依 rpId 選第一把憑證）。
+    """
+    creation = authenticator.make_credential(
+        make_creation_options(), origin="https://example.com"
+    )
+    request_options = make_request_options(creation["id"])
+    request_options["allowCredentials"] = []
+
+    assertion = authenticator.get_assertion(
+        request_options, origin="https://example.com"
+    )
+
+    assert assertion["id"] == creation["id"]
+
+
 def _b64_to_bytes(data: str) -> bytes:
     padding = "=" * (-len(data) % 4)
     return b64decode(data + padding)

@@ -7,7 +7,7 @@ import json
 import sys
 import threading
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, List, Optional
 
 import keyring
 
@@ -135,16 +135,6 @@ class CredentialStore:
             if metadata.get("rp_id") == rp_id:
                 matches.append(self.load(credential_id))
         return matches
-
-    def find_first(
-        self, allow_credentials: Iterable[str]
-    ) -> Optional[CredentialRecord]:
-        for cred_id in allow_credentials:
-            try:
-                return self.load(cred_id)
-            except CredentialStoreError:
-                continue
-        return None
 
     def list_metadata(self) -> Dict[str, Dict[str, str]]:
         with self._lock:
