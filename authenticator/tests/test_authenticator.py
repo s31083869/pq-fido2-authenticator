@@ -225,6 +225,59 @@ def test_missing_origin_raises_clear_error(authenticator, operation):
         getattr(authenticator, operation)(options)
 
 
+def test_get_assertion_rejects_allowed_id_differing_only_in_case(authenticator):
+    """T7：allowCredentials 的 ID 和已存憑證 A 只差在大小寫時，必須拒絕，不能選中 A。
+
+    依據：credential ID 是不透明的 bytes，必須完全相同才算同一張憑證（WebAuthn §6.3.3、
+    Phase-1 spec 6.2）。Windows 的檔案系統比對檔名時不分大小寫，不能讓它決定比對結果。
+    CI 的 Linux 改用 keyring 儲存，沒有這個問題，在那裡這個測試是回歸保護。
+    """
+    creation = authenticator.make_credential(
+        make_creation_options(), origin="https://example.com"
+    )
+    swapped_id = creation["id"].swapcase()
+    # 確認 ID 裡有英文字母，大小寫互換後確實是另一個 ID
+    assert swapped_id != creation["id"]
+    request_options = make_request_options(swapped_id)
+
+    with pytest.raises(CredentialStoreError, match="No credential available"):
+        authenticator.get_assertion(request_options, origin="https://example.com")
+
+
+def test_get_assertion_rejects_allowed_id_containing_a_path(authenticator):
+    """T8：allowCredentials 的 ID 含有路徑（../credentials/<A 的 ID>）時，必須拒絕。
+
+    依據：同 T7。ID 只是識別碼，不能被當成檔案路徑解讀，否則可以繞路開到清單以外的憑證檔。
+    """
+    creation = authenticator.make_credential(
+        make_creation_options(), origin="https://example.com"
+    )
+    request_options = make_request_options(f"../credentials/{creation['id']}")
+
+    with pytest.raises(CredentialStoreError, match="No credential available"):
+        authenticator.get_assertion(request_options, origin="https://example.com")
+
+
+def test_make_credential_ignores_exclude_id_differing_only_in_case(authenticator):
+    """T9：excludeCredentials 的 ID 和已存憑證 A 只差在大小寫時，不可誤判為重複註冊，註冊應成功。
+
+    依據：WebAuthn §6.3.2 authenticatorMakeCredential 依 credential ID 查找 excludeCredentials，
+    必須完全相同才算 authenticator 已經擁有這張憑證。
+    """
+    existing = authenticator.make_credential(
+        make_creation_options(), origin="https://example.com"
+    )
+    options = make_creation_options()
+    options["excludeCredentials"] = [
+        {"id": existing["id"].swapcase(), "type": "public-key"}
+    ]
+
+    result = authenticator.make_credential(options, origin="https://example.com")
+
+    # 註冊成功，而且建立的是一張新的憑證
+    assert result["id"] != existing["id"]
+
+
 def _b64_to_bytes(data: str) -> bytes:
     padding = "=" * (-len(data) % 4)
     return b64decode(data + padding)
