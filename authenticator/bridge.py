@@ -125,37 +125,45 @@ INJECT_SCRIPT = r"""
     };
   };
 
+  // 改寫頁面的 navigator.credentials.create()／get()：WebAuthn 請求改交給 Python authenticator，
+  // 透過 Playwright 掛上的 binding（__pqMakeCredential、__pqGetAssertion）送出，結果再組回
+  // PublicKeyCredential 物件交給頁面。輸入：無（直接修改目前頁面的 navigator）；輸出：無。
   const wrapNavigator = () => {
+    // 沒有 WebAuthn API，或這個頁面已經改寫過（同一頁面可能被注入兩次），就不再處理
     if (!navigator.credentials || navigator.credentials.__pqHooked) {
       return;
     }
+    // 保留瀏覽器原本的實作，給不是 WebAuthn 的請求使用
     const originalCreate = navigator.credentials.create.bind(navigator.credentials);
     const originalGet = navigator.credentials.get.bind(navigator.credentials);
 
+    // 註冊：把 PublicKeyCredentialCreationOptions 的二進位欄位轉成 base64url 後交給 Python。
+    // payload 不帶 origin：bridge 會從呼叫者 frame 的真實網址取出 origin，不採用頁面提供的值。
     navigator.credentials.create = async (options) => {
+      // 不是 WebAuthn 請求（例如密碼憑證），或 binding 不存在時，交回瀏覽器原本的實作
       if (!options?.publicKey || typeof window.__pqMakeCredential !== "function") {
         return originalCreate(options);
       }
       const payload = {
-        origin: window.location.origin,
         publicKey: serializeCreationOptions(options.publicKey),
       };
       const result = await window.__pqMakeCredential(payload);
       return buildCredential(result);
     };
 
+    // 登入：流程同註冊，選項換成 PublicKeyCredentialRequestOptions，交給 __pqGetAssertion
     navigator.credentials.get = async (options) => {
       if (!options?.publicKey || typeof window.__pqGetAssertion !== "function") {
         return originalGet(options);
       }
       const payload = {
-        origin: window.location.origin,
         publicKey: serializeRequestOptions(options.publicKey),
       };
       const result = await window.__pqGetAssertion(payload);
       return buildCredential(result);
     };
 
+    // 標記為已改寫；defineProperty 預設不可修改、不可列舉
     Object.defineProperty(navigator.credentials, "__pqHooked", { value: true });
     console.info("[PQ-Authenticator] navigator.credentials hooked");
   };
