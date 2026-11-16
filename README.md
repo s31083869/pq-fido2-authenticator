@@ -1,5 +1,7 @@
 # PQ FIDO2 Authenticator
 
+> 第一次接觸本專案？請先用瀏覽器開啟 [協議導覽](codex/PROTOCOL-GUIDE.html)，從零了解 WebAuthn 的流程、後量子演算法與程式碼位置。協作守則請見 [CLAUDE.md](CLAUDE.md)。
+
 ## 快速開始
 
 ### 1. 安裝依賴
