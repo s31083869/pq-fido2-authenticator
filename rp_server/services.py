@@ -134,13 +134,31 @@ def verify_authentication_payload(
     settings: RPSettings,
     user: User,
 ) -> Credential:
+    """驗證一次登入（assertion）的結果，通過時回傳已更新 signCount 的憑證。
+
+    依 WebAuthn §7.2 依序檢查：憑證屬於這個使用者、clientDataJSON 的 type／challenge／origin、
+    authenticatorData 的 rpIdHash，最後用資料庫裡的公鑰驗章。任何一項不符都以 400 中止。
+
+    參數：
+        session：資料庫連線，用來查詢憑證。
+        payload：前端送來的登入結果，包含 id 與 response 裡的 clientDataJSON、
+            authenticatorData、signature（皆為 base64url 字串）。
+        challenge：RP 這次發出、尚未使用過的 challenge。
+        settings：RP 設定，提供 rp_id 與 origin。
+        user：要登入的使用者。
+    """
     response = payload.get("response", {})
+
+    # 依 credential ID 找出註冊時保存的公鑰與演算法，並確認這把憑證屬於這個使用者
     credential_id = payload.get("id") or payload.get("rawId")
     credential = session.get(Credential, credential_id or "")
     if not credential or credential.user_id != user.id:
         abort(400, "Unknown credential")
 
-    client_data = json.loads(_b64url_to_bytes(response.get("clientDataJSON")))
+    # 保留 clientDataJSON 的原始 bytes：簽章是對這串 bytes 計算的，之後要直接拿它算雜湊
+    client_data_json = _b64url_to_bytes(response.get("clientDataJSON"))
+    client_data = json.loads(client_data_json)
+    # type 必須是登入；challenge 必須是剛發出的那一個（防重放）；origin 必須是本站（防釣魚）
     if client_data.get("type") != "webauthn.get":
         abort(400, "Invalid clientData type")
     if client_data.get("challenge") != challenge:
@@ -148,19 +166,18 @@ def verify_authentication_payload(
     if client_data.get("origin") != settings.origin:
         abort(400, "Origin mismatch")
 
+    # authenticatorData 開頭 32 bytes 是 SHA-256(rpId)，確認 authenticator 認定的網站就是本站
     auth_data_bytes = _b64url_to_bytes(response.get("authenticatorData"))
     parsed = _parse_authenticator_data(auth_data_bytes)
     if parsed.get("rp_id_hash") != _rp_id_hash(settings.rp_id):
         abort(400, "rpId hash mismatch")
 
-    message = (
-        auth_data_bytes
-        + hashlib.sha256(
-            json.dumps(client_data, separators=(",", ":")).encode("utf-8")
-        ).digest()
-    )
+    # 重組簽章輸入：authenticatorData ‖ SHA-256(clientDataJSON 原始 bytes)。
+    # 不能把 JSON 解析後重新序列化：空白或欄位順序一變，bytes 就和被簽章的內容不同。
+    message = auth_data_bytes + hashlib.sha256(client_data_json).digest()
     signature = _b64url_to_bytes(response.get("signature"))
 
+    # 依註冊時保存的 COSE 演算法編號選出 liboqs 演算法，再用公鑰驗章
     oqs_alg = _cose_to_oqs(credential.algorithm)
     with oqs.Signature(oqs_alg) as verifier:
         valid = verifier.verify(
@@ -169,6 +186,7 @@ def verify_authentication_payload(
     if not valid:
         abort(400, "Invalid signature")
 
+    # 記下這次 authenticatorData 中的 signCount（尚未檢查是否遞增，列在待辦清單）
     credential.sign_count = parsed.get("sign_count", credential.sign_count)
     return credential
 
