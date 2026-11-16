@@ -547,7 +547,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <dl class="defs">
     <div><dt>使用者</dt><dd>按下註冊或登入，並通過指紋或 Windows Hello 驗證。</dd></div>
     <div><dt><span class="actor client">前端網頁</span></dt><dd>網站在瀏覽器裡執行的 JavaScript。它呼叫瀏覽器提供的 <code>navigator.credentials.create()</code>（註冊）與 <code>navigator.credentials.get()</code>（登入）。本專案是 <code>frontend/</code>。</dd></div>
-    <div><dt><span class="actor client">瀏覽器／攔截層</span></dt><dd>正常情況下，瀏覽器負責把網頁的請求轉給 authenticator，並填入 origin。本專案由攔截層改寫這兩個 API，把請求轉給我們自己的 authenticator。</dd></div>
+    <div><dt><span class="actor client">瀏覽器／攔截層</span></dt><dd>正常情況下，瀏覽器負責把網頁的請求轉給 authenticator，並填入 origin。本專案由攔截層改寫這兩個 API，把請求轉給我們自己的 authenticator。填入 origin 的工作也由攔截層接手：Python bridge 和瀏覽器一樣，從呼叫者頁面的真實網址取出 origin，不採用頁面自己傳來的值；Extension 目前仍使用頁面傳來的值，但只接受 demo.yubico.com 的頁面。</dd></div>
     <div><dt><span class="actor auth">Authenticator</span></dt><dd>認證器：產生並保管私鑰、執行簽章。一般是 YubiKey、手機或 Windows Hello；本專案是軟體版，支援後量子演算法。</dd></div>
     <div><dt><span class="actor rp">RP Server</span></dt><dd>Relying Party（依賴方），也就是網站後端：負責出題目、驗證結果、保存公鑰。本專案是 <code>rp_server/</code>。</dd></div>
   </dl>
@@ -1098,7 +1098,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <div class="two-col">
     <div class="card">
       <h3>已完成</h3>
-      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 14 個、Extension 11 個、前端 4 個。</p>
+      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 28 個、Extension 11 個、前端 4 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。</p>
     </div>
     <div class="card">
       <h3>進行中</h3>
@@ -1212,6 +1212,8 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="term"><dt>WebAssembly（WASM）</dt><dd>瀏覽器可以執行的二進位程式格式；Extension 用它在瀏覽器裡執行 liboqs。</dd></div>
       <div class="term"><dt>Emscripten</dt><dd>把 C 程式編譯成 WebAssembly 的工具鏈。</dd></div>
       <div class="term"><dt>Playwright</dt><dd>瀏覽器自動化工具；Python bridge 用它開 Chromium 並注入腳本。</dd></div>
+      <div class="term"><dt>binding（expose_binding）</dt><dd>Playwright 的功能：把 Python 函式掛到網頁的 window 上（例如 window.__pqMakeCredential），讓頁面的 JavaScript 呼叫。Playwright 會一併告訴 Python 是哪個 frame 呼叫的，這項資訊頁面無法偽造。</dd></div>
+      <div class="term"><dt>frame</dt><dd>瀏覽器裡裝載一份網頁的框：分頁本身是主 frame，頁面中的每個 iframe 各是一個 frame。Python bridge 從呼叫者 frame 的網址取出 origin。</dd></div>
       <div class="term"><dt>Chrome MV3</dt><dd>Chrome extension 的第三版規格（Manifest V3）。</dd></div>
       <div class="term"><dt>Service worker</dt><dd>MV3 extension 的背景程式；Extension 版的認證器邏輯在這裡執行。</dd></div>
       <div class="term"><dt>Content script／Injected script</dt><dd>content script 在隔離環境中轉送訊息；injected script 在頁面環境中改寫 navigator.credentials。</dd></div>
