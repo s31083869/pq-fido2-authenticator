@@ -4,7 +4,7 @@
 |---|---|
 | 日期 | 2026-11-17 |
 | 分支 | `day-02`（從 `origin/main` 7020c73 開出） |
-| 狀態 | 開工：對齊完成，測試案例已核准，實作中 |
+| 狀態 | 實作中：T1–T8 完成；依獨立審查追加 T9、T10 |
 
 ---
 
@@ -118,6 +118,8 @@
 ### 待辦清單（中途發現、今天不處理）
 
 - RP 註冊時沒有檢查公鑰長度是否符合演算法（`rp_server/services.py:121–123` 只檢查是 bytes），也沒有檢查 COSE_Key 的 kty（`1`）是否為 7（AKP）。長度錯誤或任意長度的公鑰都會被存進 DB；共用表有 `publicKeyBytes` 之後就能檢查。Day 3 會修改這個函式，可以一併考慮，但要先經過使用者同意。
+- Python authenticator 先要求使用者驗證（Windows Hello，`authenticator/service.py:138`），才檢查演算法（`:153`）。所以 RP 只提供不支援的演算法（例如只有 `[-7]`）時，使用者會先看到 Windows Hello 視窗，之後才被拒絕。WebAuthn §6.3.2 的步驟 2（檢查演算法，不支援就回 NotSupportedError）排在使用者同意與驗證之前。測試用的是 NoopVerifier，看不出這個問題。和 Day 1 待辦中「找不到憑證時先跳 Windows Hello」是同一類問題，可以一起處理。
+- T5 比對的是「值相等」，所以某一端改回寫死、但五筆內容都和共用表相同時，T5 抓不到。這是設計極限：寫死但內容錯的情況都抓得到。若要更嚴格，可以另外確認兩端的對照是由 `cose_to_oqs_names()` 產生。
 
 ### 對齊紀錄
 
@@ -137,3 +139,131 @@
   - 但公鑰本身可以亂填：RP 只檢查 `-1` 是 bytes（`services.py:121–123`），不檢查長度是否符合演算法，也不檢查 `1`（kty）是不是 7（AKP）；attestation 為 none，也沒有證明 authenticator 真的持有對應的私鑰。這是既有問題，記入待辦清單。
 - 決定：讀取模組放 `shared/pq_algorithms.py`，測試放 `shared/tests/`；同意依 `CLAUDE.md` 的規定，把 `shared/tests` 加進 `testpaths`，把 `shared` 加進 CI 與 `CLAUDE.md` 的 ruff 路徑（「待你決定」第 1 點採建議做法）。
 - 測試案例 T1–T8：使用者已於 11/17 核准。
+
+### 追加工作（11/17，依獨立審查）
+
+獨立審查的結論是「沒有必須修正的項目」，但指出兩個缺口：程式裡有檢查，卻沒有測試保護。之後重構時被拿掉，也不會有人發現。另外還有一個小 bug。
+
+1. **讀取模組有 6 項檢查沒有測試保護。** 審查者把它們拿掉，57 個測試仍然全綠：
+   - bool 被當成整數接受
+   - 未知欄位被接受
+   - 大小 ≤ 0 被接受
+   - `signatureLengthFixed` 任何型別都接受
+   - 空字串的名稱被接受
+   - 缺少 `algorithms` 清單
+
+   其中「bool 不當整數」和「多出的欄位」在註解和完工紀錄裡都寫成功能。
+2. **小 bug。** `status` 如果是清單這類不能雜湊的值，`value not in VALID_STATUSES` 會丟出 `TypeError`，不是 `ValueError`，和模組說明「都會拋出 ValueError」不一致（`shared/pq_algorithms.py:87`）。
+3. **RP 的 `_cose_to_oqs()` 沒有測試保護。** Day 2 改寫了它的註解，寫明「編號不在共用表時回 400」，但審查者把 `abort` 改成退回 ML-DSA-44，全套測試仍綠（`rp_server/services.py:204–213`）。
+
+T9、T10 是新增的測試，T1–T8 的內容不變。除了 T9 (h)，其他實作都已經存在，所以新測試一寫好就會是綠燈，證明它們有效的是破壞檢查（做法同 Day 1 的 T12、T13）。
+
+#### 追加的測試案例（使用者已於 11/17 核准）
+
+| 編號 | 情境 | 預期結果 | 依據 | 實作前預期 |
+|---|---|---|---|---|
+| T9 | 讀取一份測試用的表，第二筆（索引 1）分別是：(a) `coseAlg` 為 `true`；(b) `publicKeyBytes` 為 `true`；(c) 多出拼錯的欄位 `oqsname`（其他欄位都正確）；(d) `publicKeyBytes` 為 `0`；(e) `signatureLengthFixed` 為字串 `"false"`；(f) `label` 為空字串；(g) `oqsName` 為空字串；(h) `status` 為清單 `["standard"]`；另外 (i) 整份表沒有 `algorithms` 清單 | (a)–(h) 都拋出 `ValueError`，訊息開頭指出 `algorithms[1].<欄位>`；(i) 拋出 `ValueError`，訊息提到 `algorithms` | RFC 8259 §3：JSON 的 `true`／`false` 是獨立的字面值，不是數字；workflow.md F02 規定的欄位；拼錯的欄位若被默默忽略，Python 和之後讀同一份表的 TypeScript 可能看到不同的資料（違反 D3「唯一的資料來源」）；模組說明承諾壞掉的表一律拋出 `ValueError` | (h) 紅燈（目前丟出 `TypeError`）；其他綠燈，有效性由破壞檢查證明 |
+| T10 | RP 的 DB 中有一張憑證的演算法是 -7（ES256，不在共用表中），用它送出登入 | `/authenticate/verify` 回傳 400 `Unsupported algorithm`，不嘗試驗章 | WebAuthn §7.2：RP 用註冊時保存的演算法驗章；不認得的演算法無法驗章，必須拒絕，不能改用其他演算法 | 綠燈（回歸保護）；有效性由破壞檢查證明 |
+
+**破壞檢查**：
+- T9：依序拿掉 6 項檢查，每次只拿掉一項：整數欄位改用 `isinstance(value, int)`、接受未知欄位、接受大小 ≤ 0、不檢查 `signatureLengthFixed` 的型別、接受空字串名稱、拿掉 `algorithms` 清單的檢查。每次都必須有對應的子情境變紅。
+- T10：把 `_cose_to_oqs()` 的 `abort` 改成退回 `ML-DSA-44`，T10 必須變紅。
+
+#### 一併處理的輕微項目（只改註解與文件，不改行為）
+
+- `PQCSignatureSuite.__init__` 補上自己的 docstring（`authenticator/pqcrypto.py:38`）。
+- 協議導覽名詞「Padded／unpadded」更正：補滿格式也是先壓縮，再補 0 到固定長度（666／1280）。
+- T4 的 docstring：「第 1 筆（索引 1）」改成「索引 1（第二筆）」，避免誤讀。
+
+#### 追加工作的對齊紀錄
+
+- 使用者核准 T9、T10，並同意今天一併修正三項輕微項目（11/17）。
+
+---
+
+## 完工
+
+### 實際修改
+
+行號以 Day 2 最後一個 commit 的版本為準。
+
+| commit | 檔案:行號 | 改了什麼 | 目的 |
+|---|---|---|---|
+| `9f6ea0b` | `codex/worklog/day-02.md` | 新增本文件的開工段落 | 在實作前留下測試案例與對齊紀錄 |
+| `a56abb7` | `shared/pq-algorithms.json:1–55`（新增） | 五個演算法的共用表，含 `description` 說明欄位意義與數值依據 | F01、F02：唯一的資料來源 |
+| `a56abb7` | `shared/__init__.py`（新增） | 讓 `shared/` 成為 Python 套件，說明它放 RP 與 authenticator 共用的定義 | RP 與 authenticator 都能 `import shared` |
+| `a56abb7` | `shared/pq_algorithms.py:19–23` | `REGISTRY_PATH`、`VALID_STATUSES` | 表的位置與 status 合法值 |
+| `a56abb7` | `shared/pq_algorithms.py:27–62` | `PQAlgorithm`（不可修改的資料物件）與 JSON 欄位對照 `_FIELDS` | 用 Python 慣用的欄位名稱表示一筆演算法 |
+| `a56abb7` | `shared/pq_algorithms.py:65–110` | `_check_field()`、`_parse_entry()`：檢查缺欄位、多出的欄位、型別（bool 不當整數）、status | 壞掉的表在啟動時就被擋下 |
+| `a56abb7` | `shared/pq_algorithms.py:113–151` | `load_algorithms()`（含 COSE 編號與 liboqs 名稱的重複檢查）、模組載入時的 `ALGORITHMS`、`cose_to_oqs_names()` | 兩端從同一份表取得對照 |
+| `a56abb7` | `shared/tests/test_pq_algorithms.py:1–155`（新增） | T1（第 62 行）、T2（第 85 行）、T3（第 115 行）、T4（第 144 行） | 驗證共用表與讀取模組 |
+| `a56abb7` | `pyproject.toml:32`、`.github/workflows/ci.yml:50`、`:53`、`CLAUDE.md:83–84` | `testpaths` 加入 `shared/tests`；ruff 路徑加入 `shared` | 依 `CLAUDE.md` 規定同步新增的測試資料夾；CI 也會檢查 |
+| `0533723` | `authenticator/pqcrypto.py:10`、`16–20` | `COSE_ALG_TO_OQS` 改由 `cose_to_oqs_names()` 產生 | 不再寫死，和 RP 一致 |
+| `0533723` | `authenticator/pqcrypto.py:30–69` | 補齊 `PQCSignatureSuite` 與各方法的註解（邏輯不變） | 依守則補註解 |
+| `0533723` | `rp_server/services.py:19`、`197–213` | `COSE_TO_OQS` 改由 `cose_to_oqs_names()` 產生，補齊 `_cose_to_oqs()` 的註解 | 不再寫死，和 authenticator 一致 |
+| `0533723` | `authenticator/tests/test_pqcrypto.py:1–94`（新增） | T5 authenticator 端（第 19 行）、T6（第 32 行）、T8（第 64、74 行） | 驗證 authenticator 端 |
+| `0533723` | `rp_server/tests/test_authentication_verify.py:1–7`、`26–27`、`145–189` | 模組說明更新；T5 RP 端（第 145 行）、T7（第 157 行） | 驗證 RP 端 |
+| `7aa0678` | `codex/PROTOCOL-GUIDE.html` 第 8.2、10、11 章 | 新增 `shared/` 目錄卡片、更新測試數、名詞表新增 3 個名詞 | 導覽跟上程式；新術語進名詞表 |
+| 完工紀錄 | `codex/REPORTS.md` | Decision Log 第 57–59 號 | 記錄今天的三項決定 |
+| 完工紀錄 | `codex/FN-DSA-PLAN.md` | 勾選 Day 2 | 讓計畫和實際進度一致 |
+| 完工紀錄 | `codex/worklog/day-02.md` | 完工段落 | 本段 |
+
+### 測試結果（實作前 → 實作後）
+
+| 測試 | 實作前 | 實作後 |
+|---|---|---|
+| T1–T4 | 紅燈：收集階段就失敗，`ModuleNotFoundError: No module named 'shared.pq_algorithms'` | 綠燈（11 個參數化案例） |
+| T5 | 紅燈：authenticator 與 RP 兩端都是 `AssertionError`，對照只有 -48/-49/-50 | 綠燈 |
+| T6 | ML-DSA 三個綠燈；FN-DSA-512、FN-DSA-1024 紅燈：`ValueError: Unsupported COSE algorithm: -54`（-55 相同） | 綠燈 |
+| T7 | ML-DSA 三個綠燈；FN-DSA-512、FN-DSA-1024 紅燈：400 `Unsupported algorithm` | 綠燈 |
+| T8 | 綠燈（回歸保護） | 綠燈 |
+
+T5–T8 寫好、兩端尚未切換時，全套為 6 個失敗、51 個通過，失敗的正是上表預期的 6 個。和開工段落的「實作前預期」完全一致。
+
+整體：Python 測試從 32 個增為 57 個，Extension 11 個、Frontend 4 個。`9f6ea0b`、`a56abb7`、`0533723` commit 前都跑過 8 項必跑檢查並全部通過；`7aa0678` 只改協議導覽，程式和 `0533723` 相同，commit 前沒有重跑。
+
+### 破壞檢查
+
+| 測試 | 怎麼改壞 | 結果 |
+|---|---|---|
+| T3 | 拿掉 `load_algorithms()` 裡兩個重複檢查的 `raise` | T3 的兩個案例都變紅，其他 9 個仍綠 |
+| T5 | authenticator 的 `COSE_ALG_TO_OQS` 改回寫死的三筆 ML-DSA | T5（authenticator 端）與 T6 的 FN-DSA-512、FN-DSA-1024 變紅，共 3 個 |
+| T5、T7 | RP 的 `COSE_TO_OQS` 把 -54 改對到 `Falcon-1024`（確認問題 2 的情境） | T5（RP 端）與 T7 的 FN-DSA-512 變紅；T7 的錯誤正是 400 `Invalid signature`，和確認問題 2 的說明一致 |
+
+每次檢查後都已改回正確的實作，並用 SHA-256 確認和破壞前完全相同。
+
+### 獨立審查
+
+由沒看過實作過程的子代理審查 `origin/main..7aa0678`。它的做法：
+- 用 `git worktree` 分別取出 5 個版本，逐一執行 pytest 與 ruff。
+- 把新測試放進實作前的版本，重現紅燈。
+- 用 29 種方式改壞實作。
+- 獨立查證所有預期值。
+
+**結論**：沒有必須修正的項目。
+- T1–T8 都忠實對應核准的案例。
+- 預期值都來自外部依據：Falcon 的公鑰、私鑰大小，審查者另外用規格的編碼公式算過，結果相同。
+- 「實作前預期」（6 紅 51 綠）重現結果一致。
+- 每個 commit 單獨取出來都通過。`7aa0678` 由審查者補跑全部 8 項必跑檢查，也都通過。
+
+| 審查意見 | 分類 | 處理 |
+|---|---|---|
+| 讀取模組有 6 項檢查沒有測試保護（bool 當整數、未知欄位、大小 ≤ 0、`signatureLengthFixed` 型別、空字串名稱、缺 `algorithms` 清單） | 建議 | 使用者核准 T9，今天補上 |
+| `status` 為不能雜湊的值時丟 `TypeError` 而不是 `ValueError` | 建議 | 納入 T9 (h)，今天修正 |
+| RP `_cose_to_oqs()` 遇到未知演算法回 400，這個行為沒有測試 | 建議 | 使用者核准 T10，今天補上 |
+| 演算法檢查排在使用者驗證之後（既有問題） | 建議 | 記入待辦清單 |
+| T5 抓不到「寫死但內容完全正確」 | 建議 | 記入待辦清單（設計極限） |
+| `7aa0678` commit 前沒有重跑必跑清單 | 輕微 | 工作紀錄已註明；審查者補跑全部通過 |
+| `PQCSignatureSuite.__init__` 沒有 docstring | 輕微 | 使用者同意，今天修正 |
+| 協議導覽「Padded／unpadded」的寫法會讓人以為補滿格式沒有壓縮 | 輕微 | 使用者同意，今天修正 |
+| T4 docstring「第 1 筆（索引 1）」容易誤讀 | 輕微 | 使用者同意，今天修正 |
+| T7 單獨抓不到 JSON 的 `oqsName` 寫錯 | 輕微 | 不處理：這類錯誤由 T1、T2 負責 |
+| 執行期間不讀 `status`；Falcon 的 AVX2 實作沒有宣稱「不依秘密值分支」 | 輕微（提醒） | 不處理：前者是 REPORTS 第 59 號的決定；後者是 PoC 可接受的風險，Day 11 檢視安全 backlog 時再記錄 |
+| 規格「第 3.11.6 節」的節次無法在 repo 內逐字查證 | 輕微 | 不處理：數值已用編碼公式與三處 liboqs 來源交叉確認 |
+
+審查者另外確認沒有問題的項目：
+- 從根目錄以 README 的方式啟動 RP 與 authenticator 都能 `import shared`。
+- CI 會收集 `shared/tests`，ruff 兩個步驟也都包含 `shared`；`uv.lock` 沒有變動。
+- RP 的 `hosted_algorithms` 不變。
+- authenticator 只有在 RP 把 -54/-55 列在前面時才會選 FN-DSA。
+- 工作紀錄的行號與數字都正確。
