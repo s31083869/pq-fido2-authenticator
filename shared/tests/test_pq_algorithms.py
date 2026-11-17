@@ -208,8 +208,10 @@ def test_loader_rejects_table_without_algorithm_list(tmp_path: Path) -> None:
     """T9 (i)：整份表沒有 algorithms 清單時，讀取模組拋出 ValueError，訊息提到 algorithms。
 
     依據：共用表的結構是 {"algorithms": [...]}；少了清單代表檔案寫錯，不能當成「沒有任何演算法」。
+    錯誤訊息以檔案路徑開頭，而暫存檔名 pq-algorithms.json 本身就含有 "algorithms"，
+    所以斷言比對訊息中的「'algorithms' list」，確認是讀取模組指出少了清單，而不是碰巧比對到檔名。
     """
     path = tmp_path / "pq-algorithms.json"
     path.write_text(json.dumps({"items": []}), encoding="utf-8")
-    with pytest.raises(ValueError, match="algorithms"):
+    with pytest.raises(ValueError, match=r"'algorithms' list"):
         load_algorithms(path)
