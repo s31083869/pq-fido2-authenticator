@@ -16,6 +16,8 @@ import cbor2
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from shared.pq_algorithms import cose_to_oqs_names
+
 from .config import RPSettings
 from .models import Credential, User
 
@@ -192,14 +194,20 @@ def verify_authentication_payload(
     return credential
 
 
-COSE_TO_OQS = {
-    -48: "ML-DSA-44",
-    -49: "ML-DSA-65",
-    -50: "ML-DSA-87",
-}
+# COSE 演算法編號 → liboqs 演算法名稱，從共用演算法表 shared/pq-algorithms.json 產生（決策 D3），
+# 確保和 authenticator 簽章時用的名稱完全相同；兩邊不一致時，合法的簽章也會驗章失敗。
+# 這張表只決定「驗章時能翻譯哪些編號」；RP 對外宣告、註冊時接受哪些演算法，
+# 仍由 config.py 的 hosted_algorithms 決定。
+COSE_TO_OQS = cose_to_oqs_names()
 
 
 def _cose_to_oqs(alg: int) -> str:
+    """把 DB 中保存的 COSE 演算法編號翻成 liboqs 演算法名稱，供登入驗章建立驗章器。
+
+    輸入：註冊時從 credentialPublicKey 的 3（alg）欄位取得並存進 DB 的編號，例如 -54。
+    輸出：liboqs 名稱，例如 Falcon-512。
+    編號不在共用演算法表中時，回應 400「Unsupported algorithm」，不嘗試驗章。
+    """
     if alg not in COSE_TO_OQS:
         abort(400, "Unsupported algorithm")
     return COSE_TO_OQS[alg]

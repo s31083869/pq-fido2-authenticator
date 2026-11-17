@@ -316,6 +316,23 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .pill.done { background: var(--accent-soft); color: var(--accent); }
 .pill.wip { background: var(--c-client-soft); color: var(--c-client); }
 .pill.off { background: var(--surface-2); color: var(--muted); }
+.pill.fail { background: var(--c-rp-soft); color: var(--c-rp); }
+
+/* ===== 範例案例框：註冊／登入案例各一框，標題列放案例編號與結果標籤 ===== */
+.cases { display: grid; gap: 14px; max-width: 48em; }
+.case {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.case-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.case-head h4 { margin: 0; font-size: 1.02rem; font-family: var(--font-display); }
+.case .table-wrap { background: var(--surface-2); }
+.case ol { margin: 0; padding-left: 1.4em; display: grid; gap: 4px; }
 
 /* ===== authenticatorData 欄位圖 ===== */
 .byte-strip { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -414,7 +431,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <div class="meta">
     <span>適合：第一次接觸本專案的人</span>
     <span>閱讀時間：約 30 分鐘</span>
-    <span>最後更新：2026-11-16</span>
+    <span>最後更新：2026-11-17</span>
   </div>
   <div class="route"><strong>建議閱讀順序</strong>：先讀第 1–5 章掌握整體流程，再讀第 6–7 章看資料格式與演算法細節，第 8–9 章對照程式碼並實際跑一次。遇到看不懂的詞，到第 11 章的名詞表查。</div>
 </header>
@@ -556,6 +573,109 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
     <div><dt>rpId</dt><dd>網站的識別名稱，通常就是網域，本專案是 <code>localhost</code>。authenticator 會把 SHA-256(rpId) 放進簽章資料，證明這個簽章是給哪個網站的。</dd></div>
     <div><dt>origin</dt><dd>網頁的完整來源，由協定、網域、埠組成，例如 <code>http://localhost:3000</code>。它會寫進 clientDataJSON，RP 會檢查它是不是自己的網站，防止釣魚網站把請求轉送過來。</dd></div>
   </dl>
+
+  <div class="prose">
+    <h3>憑證（credential）：不是 CA 簽發的那種憑證</h3>
+    <p>中文的「憑證」很容易讓人想到 HTTPS 用的 <strong>CA 憑證</strong>（X.509 certificate）：由憑證機構簽名、證明「這把公鑰屬於某個網域」的文件。WebAuthn 的<strong>憑證（public key credential）</strong>是另一回事，<strong>沒有任何 CA 參與</strong>。它就是 authenticator 在註冊時替某個網站、某個帳號產生的<strong>一對金鑰</strong>，再加上幾個用來找到它的欄位。</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>比較項目</th><th>CA 憑證（X.509）</th><th>WebAuthn 憑證（本專案的「憑證」）</th></tr></thead>
+    <tbody>
+      <tr><td>誰產生</td><td>憑證機構（CA）簽發</td><td>使用者的 authenticator 自己產生，沒有第三方簽名</td></tr>
+      <tr><td>內容</td><td>公鑰、網域名稱、有效期限、CA 的簽章</td><td>金鑰對、credential ID、所屬網站（rpId）、所屬帳號（user handle）、signCount</td></tr>
+      <tr><td>用途</td><td>讓瀏覽器相信「這個網站是真的」</td><td>讓網站相信「這次登入的是當初註冊的那台裝置」</td></tr>
+      <tr><td>公開嗎</td><td>整份公開</td><td>公鑰和 credential ID 公開；私鑰只存在 authenticator 裡</td></tr>
+    </tbody>
+  </table></div>
+  <div class="prose">
+    <p>一張 WebAuthn 憑證會<strong>拆成兩半</strong>，分別存在兩個地方：authenticator 保存完整的一半（含私鑰），RP 只保存公鑰那一半。兩半靠同一個 <strong>credential ID</strong> 連在一起，就像鑰匙和鎖頭上貼著同一個編號標籤。下圖是第 4 章範例中，alice 在筆電上註冊完成後，這張憑證兩半的實際內容。</p>
+  </div>
+  <figure>
+    <div class="fig-frame">
+      <svg viewBox="0 0 860 404" role="img" aria-label="一張憑證的兩半：左邊是筆電 authenticator 保存的紀錄，有 credential ID、user handle、rpId、演算法、公鑰、signCount 與私鑰；右邊是 RP 資料庫的紀錄，有同一個 credential ID、使用者編號、演算法、公鑰與 signCount，但沒有私鑰。">
+        <defs>
+          <marker id="cred-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="svg-head"/>
+          </marker>
+        </defs>
+        <rect class="svg-box auth" x="20" y="16" width="400" height="372" rx="12"/>
+        <text class="svg-title" x="40" y="42">筆電上的 authenticator</text>
+        <text class="svg-sub" x="40" y="60">authenticator/data/ 的索引與加密檔</text>
+        <rect class="svg-box rp" x="440" y="16" width="400" height="372" rx="12"/>
+        <text class="svg-title" x="460" y="42">RP 資料庫</text>
+        <text class="svg-sub" x="460" y="60">rp_server/data/rp.db 的 credential 表</text>
+
+        <rect class="svg-box" x="40" y="76" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="52" y="97">credential ID</text>
+        <text class="svg-sub mono" x="388" y="97" text-anchor="end">Xw3kR9pQ…oW_-r2E</text>
+        <rect class="svg-box" x="40" y="118" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="52" y="139">user_handle</text>
+        <text class="svg-sub mono" x="388" y="139" text-anchor="end">VmIzcVQ4…（alice）</text>
+        <rect class="svg-box" x="40" y="160" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="52" y="181">rp_id</text>
+        <text class="svg-sub mono" x="388" y="181" text-anchor="end">localhost</text>
+        <rect class="svg-box" x="40" y="202" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="52" y="223">algorithm</text>
+        <text class="svg-sub mono" x="388" y="223" text-anchor="end">-49（ML-DSA-65）</text>
+        <rect class="svg-box" x="40" y="244" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="52" y="265">公鑰</text>
+        <text class="svg-sub mono" x="388" y="265" text-anchor="end">1952 bytes</text>
+        <rect class="svg-box" x="40" y="286" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="52" y="307">sign_count</text>
+        <text class="svg-sub mono" x="388" y="307" text-anchor="end">0</text>
+        <rect class="svg-box" x="40" y="328" width="360" height="32" rx="6" style="stroke: var(--accent); stroke-width: 2.4"/>
+        <text class="svg-title" x="52" y="349">私鑰</text>
+        <text class="svg-sub mono" x="388" y="349" text-anchor="end">4032 bytes，DPAPI 加密</text>
+
+        <rect class="svg-box" x="460" y="76" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="472" y="97">id</text>
+        <text class="svg-sub mono" x="808" y="97" text-anchor="end">Xw3kR9pQ…oW_-r2E</text>
+        <rect class="svg-box" x="460" y="118" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="472" y="139">user_id</text>
+        <text class="svg-sub mono" x="808" y="139" text-anchor="end">1 → user 表的 alice</text>
+        <rect class="svg-region" x="460" y="160" width="360" height="32" rx="6"/>
+        <text class="svg-sub" x="640" y="181" text-anchor="middle">不存 rp_id：RP 自己就是這個網站</text>
+        <rect class="svg-box" x="460" y="202" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="472" y="223">algorithm</text>
+        <text class="svg-sub mono" x="808" y="223" text-anchor="end">-49</text>
+        <rect class="svg-box" x="460" y="244" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="472" y="265">public_key</text>
+        <text class="svg-sub mono" x="808" y="265" text-anchor="end">1952 bytes</text>
+        <rect class="svg-box" x="460" y="286" width="360" height="32" rx="6"/>
+        <text class="svg-title" x="472" y="307">sign_count</text>
+        <text class="svg-sub mono" x="808" y="307" text-anchor="end">0</text>
+        <rect class="svg-region" x="460" y="328" width="360" height="32" rx="6"/>
+        <text class="svg-sub" x="640" y="349" text-anchor="middle">沒有私鑰欄位</text>
+
+        <line class="svg-arrow" x1="404" y1="92" x2="456" y2="92" marker-start="url(#cred-arrow)" marker-end="url(#cred-arrow)"/>
+        <line class="svg-life" x1="402" y1="218" x2="458" y2="218"/>
+        <line class="svg-life" x1="402" y1="260" x2="458" y2="260"/>
+        <line class="svg-life" x1="402" y1="302" x2="458" y2="302"/>
+      </svg>
+    </div>
+    <figcaption><strong>圖 2｜一張憑證的兩半。</strong>實線雙箭頭：兩邊用同一個 credential ID 找到彼此。虛線：兩邊內容相同的欄位（演算法、公鑰、signCount）。私鑰只存在左邊；RP 被入侵時，攻擊者只拿得到公鑰，沒辦法冒充使用者。</figcaption>
+  </figure>
+
+  <div class="prose">
+    <h3>容易混淆的名字</h3>
+    <p>流程裡有好幾個「ID」和「名稱」，最容易搞混的是下面這幾個。範例值和第 4、5 章的範例情景相同。</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>名字</th><th>誰產生</th><th>範例值</th><th>意思</th></tr></thead>
+    <tbody>
+      <tr><td>帳號名稱（username）</td><td>使用者輸入</td><td><code>alice</code></td><td>給人看、給 RP 查詢的帳號。RP 用它找出使用者與 challenge。</td></tr>
+      <tr><td>顯示名稱（displayName）</td><td>使用者輸入</td><td><code>Alice</code></td><td>只用來顯示，例如 Windows Hello 視窗上的「Verify to register Alice」。</td></tr>
+      <tr><td>user handle</td><td>RP 產生，21 個隨機英數字</td><td><code>Vb3qT8kLm2Xp9RfZ0aYc4</code></td><td>RP 內部代表這個使用者的 ID，不是帳號名稱。前端把它轉成 bytes 交給 authenticator，authenticator 再以 base64url 保存，所以 authenticator 這一側看到的是 <code>VmIzcVQ4a0xtMlhwOVJmWjBhWWM0</code>：值相同，只是寫法不同。</td></tr>
+      <tr><td><strong>credential ID</strong></td><td><strong>authenticator</strong> 產生，32 個隨機 bytes</td><td><code>Xw3kR9pQ2vLmN8sT1yB6cD4fH7jK0aZeU5gIoW_-r2E</code></td><td>這一對金鑰的編號，base64url 後固定 43 個字元。<strong>它不是秘密</strong>，只是標籤：RP 用它「點名」要哪一把鑰匙，也用它找回註冊時存的公鑰。</td></tr>
+      <tr><td>rpId</td><td>RP 設定</td><td><code>localhost</code></td><td>網站的識別名稱。每張憑證都綁定註冊時的 rpId，不能拿到別的網站使用。</td></tr>
+      <tr><td>origin</td><td>攔截層從頁面網址取出</td><td><code>http://localhost:3000</code></td><td>發出請求的頁面來源，寫在 clientDataJSON 裡。</td></tr>
+      <tr><td>challenge</td><td>RP 每次產生</td><td><code>kN3dXq6V…gYtKx1E</code></td><td>一次性的題目，用過就從 RP 的暫存中刪掉。它不屬於任何一張憑證。</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note">
+    <div class="note-label">一句話記住</div>
+    <p>一個帳號（user handle）可以有很多張憑證（credential ID），通常一台裝置一張；每張憑證只屬於一個網站（rpId）和一個帳號。credential ID 是公開的標籤，真正證明身分的是只有 authenticator 才有的私鑰。</p>
+  </div>
 </section>
 
 <!-- ============ 4 ============ -->
@@ -628,7 +748,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
           </g>
         </svg>
       </div>
-      <figcaption><strong>圖 2｜註冊流程。</strong>每一列是一個步驟，箭頭方向就是資料流動的方向；第 5、8 步是在同一個角色內部完成的處理。</figcaption>
+      <figcaption><strong>圖 3｜註冊流程。</strong>每一列是一個步驟，箭頭方向就是資料流動的方向；第 5、8 步是在同一個角色內部完成的處理。</figcaption>
     </figure>
     <div class="stepper">
       <button type="button" data-action="prev">上一步</button>
@@ -650,6 +770,83 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
     <div class="note-label">為什麼註冊時沒有驗簽章？</div>
     <p>本專案的 attestation 格式固定為 <code>none</code>，也就是 authenticator 不提供「自己是哪個廠牌型號」的證明，所以註冊時沒有可以驗證的簽章。RP 靠 challenge、origin、rpIdHash 確認這份資料屬於剛才這次註冊；之後每次登入，都必須用這把公鑰驗章成功才會通過。</p>
   </div>
+
+  <div class="prose">
+    <h3>範例情景：兩台電腦、兩個帳號</h3>
+    <p>下面用一個固定的情景，把註冊流程實際跑幾次。第 5 章的登入案例沿用同一份資料。數值都是範例，但長度和格式與程式實際產生的相同。</p>
+    <ul>
+      <li><strong>筆電</strong>和<strong>桌機</strong>各自執行一份 Python authenticator，私鑰各自存在自己的 <code>authenticator/data/</code> 裡，兩台之間<strong>不會同步</strong>。</li>
+      <li>網站是本專案的 RP（rpId 為 <code>localhost</code>），有兩個使用者：alice（user handle <code>Vb3qT8kLm2Xp9RfZ0aYc4</code>）與 bob（user handle <code>Qe8wPz3nH6tJ1cRk5LmA9</code>）。</li>
+      <li>筆電以前在 <code>demo.yubico.com</code> 註冊過一張憑證 <strong>cred-D</strong>（<code>9pHjihRQ…brqLks</code>）。它屬於別的網站，本站的 RP 資料庫裡沒有它。</li>
+      <li>RP 接受的演算法（<code>hosted_algorithms</code>）預設依序為 -49、-48、-50。</li>
+    </ul>
+    <p>接著依序發生下面四次註冊。</p>
+  </div>
+  <div class="cases">
+    <div class="case">
+      <div class="case-head"><span class="pill done">註冊案例 1｜成功</span><h4>alice 在筆電上第一次註冊，選 ML-DSA-65</h4></div>
+      <p><strong>RP 送出的參數</strong>（節錄）：alice 還沒有任何憑證，所以 excludeCredentials 是空的。</p>
+      <pre><code>{
+  "challenge": "r7Tq0aWcL2…（43 字元）",
+  "rp": { "id": "localhost", "name": "PQ RP Server" },
+  "user": { "id": "Vb3qT8kLm2Xp9RfZ0aYc4", "name": "alice", "displayName": "Alice" },
+  "pubKeyCredParams": [ {"alg": -49}, {"alg": -48}, {"alg": -50} ],
+  "excludeCredentials": []
+}</code></pre>
+      <p><strong>Authenticator（筆電）依序判斷：</strong></p>
+      <ol>
+        <li>rpId <code>localhost</code> 等於 origin <code>http://localhost:3000</code> 的網域 → 通過。</li>
+        <li>跳出 Windows Hello，使用者驗證成功。</li>
+        <li>excludeCredentials 是空的 → 沒有重複。</li>
+        <li>前端已把使用者選的 -49 排在第一個；-49 在共用演算法表裡 → 選 <strong>ML-DSA-65</strong>。</li>
+        <li>liboqs 產生 1952 bytes 的公鑰、4032 bytes 的私鑰，隨機產生 credential ID <strong>cred-A</strong>（<code>Xw3kR9pQ2vLmN8sT1yB6cD4fH7jK0aZeU5gIoW_-r2E</code>），以 DPAPI 加密存成 <code>credentials/Xw3k…r2E.bin</code>。</li>
+        <li>回傳的 authenticatorData 共 2049 bytes：開頭固定 37 bytes ＋ AAGUID 16 ＋ ID 長度 2 ＋ credential ID 32 ＋ COSE_Key 1962（其中公鑰本身 1952）。</li>
+      </ol>
+      <p><strong>RP：</strong>檢查 type、challenge、origin、rpIdHash 都正確，-49 在 hosted_algorithms 裡 → 新增使用者 alice，在 credential 表新增一列：<code>cred-A／alice／-49／sign_count 0</code>。這就是圖 2 的狀態。</p>
+    </div>
+
+    <div class="case">
+      <div class="case-head"><span class="pill done">註冊案例 2｜成功</span><h4>alice 在桌機上註冊，選 ML-DSA-44</h4></div>
+      <p><strong>RP 送出的參數：</strong>alice 已經有 cred-A，所以 <code>excludeCredentials: [ cred-A ]</code>。前端把使用者選的 -48 排到第一個，<code>pubKeyCredParams</code> 變成 <code>[-48, -49, -50]</code>。</p>
+      <p><strong>Authenticator（桌機）：</strong>到自己的儲存區找 cred-A → <strong>找不到</strong>（cred-A 只存在筆電上）→ 不算重複。選第一個支援的 -48（ML-DSA-44）→ 產生 1312 bytes 的公鑰，credential ID 為 <strong>cred-B</strong>（<code>c1Gn2l0M…St4fqK7M</code>）。</p>
+      <p><strong>RP：</strong>新增一列 <code>cred-B／alice／-48／sign_count 0</code>。現在 alice 有兩張憑證：<strong>一台裝置一張</strong>，兩張的演算法也可以不同。</p>
+    </div>
+
+    <div class="case">
+      <div class="case-head"><span class="pill done">註冊案例 3｜成功</span><h4>bob 借用筆電註冊自己的帳號</h4></div>
+      <p><strong>RP 送出的參數：</strong>bob 是新使用者，RP 只列出 <strong>bob 名下</strong>的憑證，所以 <code>excludeCredentials: []</code>。筆電上雖然已經有 alice 的 cred-A，但不在清單裡，不會被拿來比對。</p>
+      <p><strong>Authenticator（筆電）：</strong>產生 <strong>cred-C</strong>（<code>BTIK-XRa…ZDJ__t4</code>），user handle 記成 bob 的。</p>
+      <p><strong>RP：</strong>新增使用者 bob 與一列 <code>cred-C／bob／-49／sign_count 0</code>。同一台筆電可以替同一個網站的<strong>不同帳號</strong>各存一張憑證。</p>
+    </div>
+
+    <div class="case">
+      <div class="case-head"><span class="pill fail">註冊案例 4｜拒絕</span><h4>alice 在筆電上又按了一次註冊</h4></div>
+      <p><strong>RP 送出的參數：</strong><code>excludeCredentials: [ cred-A, cred-B ]</code>。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>清單中的 ID</th><th>筆電有嗎？</th><th>rp_id 相同嗎？</th><th>判斷</th></tr></thead>
+        <tbody>
+          <tr><td>cred-A</td><td>有</td><td><code>localhost</code> = <code>localhost</code></td><td><strong>重複，拒絕註冊</strong></td></tr>
+          <tr><td>cred-B</td><td>（已經決定拒絕，不再檢查）</td><td></td><td></td></tr>
+        </tbody>
+      </table></div>
+      <p><strong>結果：</strong>authenticator 丟出 <code>Credential creation excluded by RP</code>，不產生新金鑰；前端顯示「Credential already registered for this RP.」；RP 收不到 verify 請求，資料庫不變。Python 版會<strong>先</strong>跳出 Windows Hello，驗證通過後<strong>才</strong>檢查 excludeCredentials，所以使用者會先看到驗證視窗，接著才看到錯誤。</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <h3>四次註冊之後的資料</h3>
+    <p>第 5 章的登入案例都從這個狀態開始。</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>憑證</th><th>credential ID</th><th>帳號</th><th>網站（rpId）</th><th>演算法</th><th>存在哪台裝置</th><th>RP 資料庫有嗎</th></tr></thead>
+    <tbody>
+      <tr><td>cred-A</td><td><code>Xw3kR9pQ…oW_-r2E</code></td><td>alice</td><td>localhost</td><td>-49 ML-DSA-65</td><td>筆電</td><td>有</td></tr>
+      <tr><td>cred-B</td><td><code>c1Gn2l0M…St4fqK7M</code></td><td>alice</td><td>localhost</td><td>-48 ML-DSA-44</td><td>桌機</td><td>有</td></tr>
+      <tr><td>cred-C</td><td><code>BTIK-XRa…ZDJ__t4</code></td><td>bob</td><td>localhost</td><td>-49 ML-DSA-65</td><td>筆電</td><td>有</td></tr>
+      <tr><td>cred-D</td><td><code>9pHjihRQ…brqLks</code></td><td>（別的網站的帳號）</td><td>demo.yubico.com</td><td>—</td><td>筆電</td><td>沒有</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">筆電的 <code>credential_index.json</code> 依序記著 cred-D、cred-A、cred-C 三把（cred-D 最早存入）；桌機只有 cred-B。</p>
 </section>
 
 <!-- ============ 5 ============ -->
@@ -719,7 +916,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
           </g>
         </svg>
       </div>
-      <figcaption><strong>圖 3｜登入流程。</strong>和註冊的路徑完全相同，差在第 5 步會簽章，第 8 步會驗章。</figcaption>
+      <figcaption><strong>圖 4｜登入流程。</strong>和註冊的路徑完全相同，差在第 5 步會簽章，第 8 步會驗章。</figcaption>
     </figure>
     <div class="stepper">
       <button type="button" data-action="prev">上一步</button>
@@ -744,25 +941,97 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <li><strong>只能用清單上的鑰匙</strong>：清單上的一把都找不到，就直接回報錯誤，不能改用其他鑰匙。</li>
       <li><strong>鑰匙必須屬於目前的網站</strong>：每把鑰匙都綁定在註冊時的網站上。就算清單列出了其他網站（例如 demo.yubico.com）的鑰匙 ID，也不能拿來登入這個網站。</li>
     </ol>
-    <p>舉例來說，假設資料庫裡登記了兩個帳號（憑證 ID 為範例值）：</p>
+    <p>清單是空的時候（RP 沒有指定），authenticator 改用這個網站底下的第一把憑證。本專案的 RP 一定會給清單：帳號沒有任何憑證時，RP 在發出登入參數那一步就回傳錯誤了。</p>
   </div>
-  <div class="table-wrap"><table>
-    <thead><tr><th>帳號</th><th>登記的憑證 ID</th><th>演算法</th></tr></thead>
-    <tbody>
-      <tr><td>alice</td><td><code>-mwuO…</code></td><td>ML-DSA-44</td></tr>
-      <tr><td>alice1</td><td><code>05Azl…</code></td><td>ML-DSA-65</td></tr>
-    </tbody>
-  </table></div>
+
   <div class="prose">
-    <p>用 alice 登入時，RP 送出的清單只有 <code>[-mwuO…]</code>。如果使用者換了一台電腦、只重新註冊了 alice1，authenticator 裡就只剩 <code>05Azl…</code>。這時兩種做法的差別如下：</p>
+    <h3>登入案例：沿用第 4 章的範例情景</h3>
+    <p>下面的案例都從第 4 章「四次註冊之後的資料」開始：筆電有 cred-D、cred-A（alice）、cred-C（bob），桌機有 cred-B（alice）。Python 版會<strong>先</strong>跳出 Windows Hello，驗證通過後<strong>才</strong>挑選憑證，所以就算最後被拒絕，使用者也會先看到驗證視窗。</p>
   </div>
-  <div class="table-wrap"><table>
-    <thead><tr><th>項目</th><th>不遵守規則（Day 1 修正前的 Python 版）</th><th>遵守規則（修正後）</th></tr></thead>
-    <tbody>
-      <tr><td>authenticator 的做法</td><td>清單上的 <code>-mwuO…</code> 找不到，就改用這個網站的第一把鑰匙，也就是 alice1 的 <code>05Azl…</code> 來簽章</td><td>清單上的鑰匙一把都找不到，直接回報錯誤，不簽章</td></tr>
-      <tr><td>結果</td><td>RP 發現這把鑰匙不屬於 alice，回傳「Unknown credential」，看不出真正的原因</td><td>前端直接顯示找不到可用的憑證，原因一目了然</td></tr>
-    </tbody>
-  </table></div>
+  <div class="cases">
+    <div class="case">
+      <div class="case-head"><span class="pill done">登入案例 1｜成功</span><h4>alice 用筆電登入</h4></div>
+      <p><strong>RP 送出的參數：</strong>alice 名下有 cred-A、cred-B，兩把都列進清單。清單的意思是「alice 有這幾把鑰匙，你有哪一把就用哪一把」。</p>
+      <pre><code>{
+  "challenge": "kN3dXq6Vb3sZp1yQe9f0T2m8w4uLr7cJ5hA0gYtKx1E",
+  "rpId": "localhost",
+  "allowCredentials": [
+    { "type": "public-key", "id": "Xw3kR9pQ2vLmN8sT1yB6cD4fH7jK0aZeU5gIoW_-r2E" },
+    { "type": "public-key", "id": "c1Gn2l0MXaHk0YKpA_c1yV5Qcd_x8SRp69fSt4fqK7M" }
+  ]
+}</code></pre>
+      <p><strong>Authenticator（筆電）照清單順序挑選：</strong></p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>順序</th><th>清單中的 ID</th><th>筆電有嗎？</th><th>rp_id 相同嗎？</th><th>判斷</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>cred-A</td><td>有</td><td><code>localhost</code> = <code>localhost</code></td><td><strong>採用，停止往下找</strong></td></tr>
+          <tr><td class="num">2</td><td>cred-B</td><td colspan="3">（不用再檢查）</td></tr>
+        </tbody>
+      </table></div>
+      <p><strong>簽章：</strong></p>
+      <ol>
+        <li>clientDataJSON（緊湊格式）：<code>{"type":"webauthn.get","challenge":"kN3dXq6V…gYtKx1E","origin":"http://localhost:3000","crossOrigin":false}</code>，再算出它的 SHA-256（32 bytes）。</li>
+        <li>signCount 從 0 加到 1。authenticatorData 共 37 bytes：<code>49960de5…831d9763</code>（rpIdHash，32 bytes）‖ <code>05</code>（flags = UP + UV）‖ <code>00 00 00 01</code>（signCount = 1，大端序）。</li>
+        <li>把兩者接起來，得到 69 bytes 的簽章輸入，用 cred-A 的 ML-DSA-65 私鑰簽章，得到 <strong>3309 bytes</strong> 的簽章。簽完才把 signCount = 1 存回去。</li>
+        <li>回傳 <code>"id": "Xw3kR9pQ…oW_-r2E"</code>，告訴 RP「我用的是 cred-A」。</li>
+      </ol>
+      <p><strong>RP：</strong>用收到的 id 查資料庫 → cred-A 屬於 alice ✓ → type、challenge、origin、rpIdHash ✓ → 依 cred-A 存的 -49 選 ML-DSA-65，用 cred-A 的公鑰驗章 ✓ → sign_count 更新為 1，登入成功。</p>
+    </div>
+
+    <div class="case">
+      <div class="case-head"><span class="pill done">登入案例 2｜成功</span><h4>alice 改用桌機登入</h4></div>
+      <p><strong>RP 送出的參數：</strong>和案例 1 完全相同的清單 <code>[cred-A, cred-B]</code>，只有 challenge 是新的。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>順序</th><th>清單中的 ID</th><th>桌機有嗎？</th><th>rp_id 相同嗎？</th><th>判斷</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>cred-A</td><td>沒有</td><td>—</td><td>跳過，看下一個</td></tr>
+          <tr><td class="num">2</td><td>cred-B</td><td>有</td><td><code>localhost</code> = <code>localhost</code></td><td><strong>採用</strong></td></tr>
+        </tbody>
+      </table></div>
+      <p><strong>簽章：</strong>用 cred-B 的 ML-DSA-44 私鑰簽，簽章是 <strong>2420 bytes</strong>；signCount 從 0 變成 1。回傳 <code>"id": "c1Gn2l0M…St4fqK7M"</code>。</p>
+      <p><strong>RP：</strong>查到 cred-B 存的是 -48，這次改用 <strong>ML-DSA-44</strong> 和 cred-B 的公鑰驗章。可以看出 RP 驗章時用哪個演算法、哪把公鑰，完全由 authenticator 回報的 credential ID 決定。</p>
+    </div>
+
+    <div class="case">
+      <div class="case-head"><span class="pill fail">登入案例 3｜拒絕</span><h4>bob 用桌機登入，但桌機上沒有他的憑證</h4></div>
+      <p><strong>RP 送出的參數：</strong>bob 只有 cred-C，清單是 <code>[cred-C]</code>。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>順序</th><th>清單中的 ID</th><th>桌機有嗎？</th><th>rp_id 相同嗎？</th><th>判斷</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>cred-C</td><td>沒有</td><td>—</td><td>跳過</td></tr>
+          <tr><td colspan="4">清單已經看完</td><td><strong>拒絕：No credential available for assertion</strong></td></tr>
+        </tbody>
+      </table></div>
+      <p>桌機上明明有 cred-B，為什麼不能用？因為 cred-B 不在清單上，它是 <strong>alice 的</strong>。下表是 Day 1 修正前後的差別：</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>項目</th><th>不遵守規則（Day 1 修正前的 Python 版）</th><th>遵守規則（修正後）</th></tr></thead>
+        <tbody>
+          <tr><td>authenticator 的做法</td><td>清單上的 cred-C 找不到，就改用這個網站的第一把，也就是 alice 的 cred-B 來簽章</td><td>清單上的憑證一把都找不到，直接回報錯誤，不簽章</td></tr>
+          <tr><td>結果</td><td>RP 發現 cred-B 屬於 alice 而不是 bob，回傳「Unknown credential」，看不出真正的原因</td><td>前端直接顯示找不到可用的憑證，原因一目了然</td></tr>
+        </tbody>
+      </table></div>
+      <p>修正前也登不進去，因為 RP 驗章第一步就會檢查「這把憑證是不是屬於 bob」。authenticator 守住清單、RP 檢查擁有者，這是兩道防線。</p>
+    </div>
+
+    <div class="case">
+      <div class="case-head"><span class="pill fail">登入案例 4｜拒絕</span><h4>清單混進了別的網站的憑證（假設情境）</h4></div>
+      <p>假設 <code>localhost</code> 的 RP 出錯或被惡意修改，送出 <code>[cred-D]</code>。cred-D 的 ID 本來就不是秘密，任何人都可能知道。</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>順序</th><th>清單中的 ID</th><th>筆電有嗎？</th><th>rp_id 相同嗎？</th><th>判斷</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>cred-D</td><td>有</td><td><code>demo.yubico.com</code> ≠ <code>localhost</code></td><td>跳過</td></tr>
+          <tr><td colspan="4">清單已經看完</td><td><strong>拒絕</strong></td></tr>
+        </tbody>
+      </table></div>
+      <p>這就是「rp_id 相同嗎？」這一欄的用途：憑證<strong>永遠綁定註冊時的網站</strong>。A 網站就算知道你在 B 網站的 credential ID，也沒辦法叫 authenticator 用那把私鑰替自己簽章。</p>
+    </div>
+
+    <div class="case">
+      <div class="case-head"><span class="pill off">登入案例 5｜目前不會發生</span><h4>清單是空的，bob 用筆電登入（假設情境）</h4></div>
+      <p>如果 RP 送出空清單 <code>[]</code>，筆電會找出這個網站（<code>localhost</code>）的所有憑證：依儲存順序是 <code>[cred-A, cred-C]</code>（cred-D 屬於別的網站，被排除），然後<strong>取第一把，也就是 alice 的 cred-A</strong>。</p>
+      <p>RP 收到 <code>"id": "Xw3kR9pQ…oW_-r2E"</code>，查到它屬於 alice 而不是 bob → 回傳「Unknown credential」。所以在「同一台裝置、同一個網站有多個帳號」時，這個分支會挑錯。市面上的 passkey 在這種情況會跳出選單讓使用者自己選；本專案沒有實作（註冊時設定 <code>residentKey: "discouraged"</code>，回報 <code>credProps.rk = false</code>）。目前 RP 一定會送出清單，所以不會走到這個分支。</p>
+    </div>
+  </div>
   <div class="two-col">
     <div class="note">
       <div class="note-label">為什麼要用「原始 bytes」算 hash？</div>
@@ -879,7 +1148,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
         <text class="svg-label" x="270" y="142" text-anchor="middle">簽章輸入共 69 bytes，RP 驗章時用完全相同的方式重組</text>
       </svg>
     </div>
-    <figcaption><strong>圖 4｜登入時的簽章輸入。</strong>clientDataJSON 先經過 SHA-256 縮成 32 bytes，接在 authenticatorData 後面一起簽。註冊時不產生簽章。</figcaption>
+    <figcaption><strong>圖 5｜登入時的簽章輸入。</strong>clientDataJSON 先經過 SHA-256 縮成 32 bytes，接在 authenticatorData 後面一起簽。註冊時不產生簽章。</figcaption>
   </figure>
 
   <div class="prose"><h3>6.6 base64url：讓二進位資料能放進 JSON</h3>
@@ -928,7 +1197,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="bar-row"><span>ML-DSA-65</span><div class="bar-track"><div class="bar-fill ml" style="width:71.5%"></div></div><span class="bar-val">3,309</span></div>
       <div class="bar-row"><span>ML-DSA-87</span><div class="bar-track"><div class="bar-fill ml" style="width:100%"></div></div><span class="bar-val">4,627</span></div>
     </div>
-    <figcaption><strong>圖 5｜每次登入要傳送的簽章大小（bytes，長條依實際大小等比例）。</strong>灰色是傳統演算法，藍色是 FN-DSA，綠色是 ML-DSA。後量子簽章大了幾十倍，這是把 PQC 用在 WebAuthn 的主要代價；FN-DSA 的簽章大約只有 ML-DSA 的四分之一。</figcaption>
+    <figcaption><strong>圖 6｜每次登入要傳送的簽章大小（bytes，長條依實際大小等比例）。</strong>灰色是傳統演算法，藍色是 FN-DSA，綠色是 ML-DSA。後量子簽章大了幾十倍，這是把 PQC 用在 WebAuthn 的主要代價；FN-DSA 的簽章大約只有 ML-DSA 的四分之一。</figcaption>
   </figure>
 
   <div class="two-col">
@@ -996,7 +1265,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
         <text class="svg-sub" x="645" y="391" text-anchor="middle">liboqs 用 Emscripten 編譯成 WASM</text>
       </svg>
     </div>
-    <figcaption><strong>圖 6｜兩條路線的差異。</strong>Python bridge 由 Playwright 直接把頁面的呼叫交給 Python 程式；Extension 的請求要依序經過頁面、content script、background 三個彼此隔離的環境，再呼叫 WASM 版的 liboqs。</figcaption>
+    <figcaption><strong>圖 7｜兩條路線的差異。</strong>Python bridge 由 Playwright 直接把頁面的呼叫交給 Python 程式；Extension 的請求要依序經過頁面、content script、background 三個彼此隔離的環境，再呼叫 WASM 版的 liboqs。</figcaption>
   </figure>
   <div class="table-wrap"><table>
     <thead><tr><th>項目</th><th>Python bridge</th><th>Chrome Extension</th></tr></thead>
@@ -1017,7 +1286,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <h3><span class="actor rp">rp_server/</span></h3>
       <ul>
         <li><span class="path">app.py</span><span>四支 API：註冊與登入各兩支（options、verify）</span></li>
-        <li><span class="path">services.py</span><span>驗證邏輯：解析 authenticatorData、CBOR、COSE，呼叫 liboqs 驗章</span></li>
+        <li><span class="path">services.py</span><span>驗證邏輯：解析 authenticatorData、CBOR、COSE，依共用演算法表選出 liboqs 演算法驗章</span></li>
         <li><span class="path">config.py</span><span>rp_id、origin、hosted_algorithms 等設定</span></li>
         <li><span class="path">models.py</span><span>資料表：User、Credential</span></li>
         <li><span class="path">challenges.py</span><span>暫存已發出的 challenge（存在記憶體）</span></li>
@@ -1029,10 +1298,17 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
         <li><span class="path">__main__.py</span><span>啟動入口</span></li>
         <li><span class="path">bridge.py</span><span>Playwright 攔截與注入腳本</span></li>
         <li><span class="path">service.py</span><span>make_credential()、get_assertion()</span></li>
-        <li><span class="path">pqcrypto.py</span><span>COSE 編號 → liboqs 演算法名稱；產生金鑰、簽章</span></li>
+        <li><span class="path">pqcrypto.py</span><span>依共用演算法表把 COSE 編號翻成 liboqs 演算法名稱；產生金鑰、簽章</span></li>
         <li><span class="path">webauthn.py</span><span>組出 authenticatorData、COSE_Key、attestationObject</span></li>
         <li><span class="path">storage.py</span><span>憑證儲存（Windows DPAPI／keyring）</span></li>
         <li><span class="path">touch.py</span><span>Windows Hello、Touch ID 使用者驗證</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>shared/</h3>
+      <ul>
+        <li><span class="path">pq-algorithms.json</span><span>共用演算法表：五個演算法的 COSE 編號、liboqs 名稱、金鑰與簽章大小</span></li>
+        <li><span class="path">pq_algorithms.py</span><span>讀取並檢查共用表，RP 與 authenticator 都 import 它</span></li>
       </ul>
     </div>
     <div class="card">
@@ -1098,7 +1374,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <div class="two-col">
     <div class="card">
       <h3>已完成</h3>
-      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 32 個、Extension 11 個、前端 4 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。</p>
+      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 67 個、Extension 11 個、前端 4 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。</p>
     </div>
     <div class="card">
       <h3>進行中</h3>
@@ -1139,12 +1415,15 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="term"><dt>Ceremony（儀式）</dt><dd>WebAuthn 對一次註冊或登入的稱呼。</dd></div>
       <div class="term"><dt>Registration／Attestation（註冊）</dt><dd>建立新憑證的儀式，對應 navigator.credentials.create()。</dd></div>
       <div class="term"><dt>Authentication／Assertion（登入／斷言）</dt><dd>用既有憑證登入的儀式，對應 navigator.credentials.get()；authenticator 回傳的簽章結果稱為 assertion。</dd></div>
-      <div class="term"><dt>Credential（憑證）</dt><dd>一組金鑰對，加上 credential ID、所屬網站等資料。</dd></div>
-      <div class="term"><dt>Credential ID</dt><dd>憑證的唯一識別碼；本專案為 32 bytes 隨機值。</dd></div>
-      <div class="term"><dt>User handle</dt><dd>RP 指派給使用者的隨機 ID，不是帳號名稱。</dd></div>
+      <div class="term"><dt>Credential（憑證）</dt><dd>WebAuthn 的 public key credential：authenticator 替某個網站、某個帳號產生的一組金鑰對，加上 credential ID、所屬網站（rpId）、所屬帳號（user handle）等資料。和 CA 憑證無關，沒有第三方簽名。一張憑證拆成兩半，authenticator 保存含私鑰的一半，RP 只保存公鑰（見第 3 章圖 2）。</dd></div>
+      <div class="term"><dt>CA 憑證（X.509 certificate）</dt><dd>HTTPS 使用的憑證：由憑證機構（CA）簽名，證明某把公鑰屬於某個網域。和 WebAuthn 的憑證是兩回事，本專案的 attestation 格式為 none，也不使用 X.509 憑證。</dd></div>
+      <div class="term"><dt>Credential ID</dt><dd>憑證的編號，由 authenticator 在註冊時產生；本專案為 32 bytes 隨機值，base64url 後為 43 個字元。它不是秘密：RP 用它指定要哪一把憑證，也用它找回註冊時存的公鑰。</dd></div>
+      <div class="term"><dt>Username（帳號名稱）</dt><dd>使用者輸入的帳號，例如 alice；RP 用它查使用者與 challenge。</dd></div>
+      <div class="term"><dt>Display name（顯示名稱）</dt><dd>使用者輸入、只用來顯示的名稱，例如 Windows Hello 視窗上的名字。</dd></div>
+      <div class="term"><dt>User handle</dt><dd>RP 指派給使用者的隨機 ID，不是帳號名稱；本專案為 21 個英數字。一個 user handle 可以對應多張憑證，通常一台裝置一張。</dd></div>
       <div class="term"><dt>Challenge</dt><dd>RP 每次產生的隨機值，簽章時一起被簽進去，用來防止重放攻擊。</dd></div>
       <div class="term"><dt>pubKeyCredParams</dt><dd>RP 接受的演算法清單，依偏好排序。</dd></div>
-      <div class="term"><dt>excludeCredentials</dt><dd>註冊時列出已存在的憑證，避免同一個 authenticator 重複註冊。</dd></div>
+      <div class="term"><dt>excludeCredentials</dt><dd>註冊時列出這個帳號已存在的憑證，避免同一個 authenticator 重複註冊（例子見第 4 章）。</dd></div>
       <div class="term"><dt>allowCredentials</dt><dd>登入時，RP 列出這個帳號名下登記過的憑證 ID；authenticator 只能從中挑選屬於這個網站的憑證，一把都找不到就必須回報錯誤（例子見第 5 章）。</dd></div>
       <div class="term"><dt>UP（User Presence）</dt><dd>使用者在場，例如按了按鈕；flags 中的 0x01。</dd></div>
       <div class="term"><dt>UV（User Verification）</dt><dd>使用者通過驗證，例如指紋、PIN、Windows Hello；flags 中的 0x04。</dd></div>
@@ -1167,6 +1446,9 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="term"><dt>kty</dt><dd>COSE_Key 的金鑰類型欄位（標籤 1），例如 2 = EC2、7 = AKP。</dd></div>
       <div class="term"><dt>AKP（Algorithm Key Pair）</dt><dd>RFC 9964 定義的金鑰類型（kty = 7），用在公鑰是一整串 bytes 的後量子演算法。</dd></div>
       <div class="term"><dt>COSE alg</dt><dd>演算法的整數編號，例如 -7 = ES256、-48 = ML-DSA-44。</dd></div>
+      <div class="term"><dt>暫定編號（provisional）</dt><dd>IETF 草案申請、但 IANA 尚未正式分配的 COSE alg，例如 FN-DSA 的 -54、-55；正式分配前可能變動。已正式分配的（例如 ML-DSA 的 -48/-49/-50）在共用演算法表中標為 standard。</dd></div>
+      <div class="term"><dt>共用演算法表（shared registry）</dt><dd><code>shared/pq-algorithms.json</code>：COSE alg 與 liboqs 名稱、金鑰與簽章大小的唯一資料來源。RP、authenticator 都從這裡讀，避免兩邊把同一個編號翻成不同的演算法。</dd></div>
+      <div class="term"><dt>Padded／unpadded（補滿／不補滿）</dt><dd>Falcon 簽章的兩種格式，兩者都先經過壓縮編碼。本專案用的不補滿格式（liboqs 的 Falcon-512）直接使用壓縮結果，長度每次不同，只有上限（752／1462 bytes）；補滿格式（Falcon-padded-512）再補 0 到固定長度（666／1280 bytes）。</dd></div>
       <div class="term"><dt>base64url</dt><dd>把二進位轉成可放進網址與 JSON 的文字：用 - 和 _，結尾不補 =。</dd></div>
     </dl>
   </div>

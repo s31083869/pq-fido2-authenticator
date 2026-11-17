@@ -401,3 +401,6 @@ liboqs 編譯優化：
 54. 2026-11-16：Python authenticator 的 credential ID 必須完全相同才算同一張憑證。儲存層只接受 base64url 字元組成的 ID，讀出檔案後再比對檔案內記錄的 ID，避免 Windows 檔名不分大小寫、或 `../` 這類路徑讓清單以外的憑證被選中（WebAuthn §6.3.2、§6.3.3）。
 55. 2026-11-16：Python bridge 的 origin 改取自 Playwright 提供的呼叫者 frame 網址，只取協定、網域、埠，不再採用頁面在 payload 中自稱的值（WebAuthn §5.8.1：origin 由瀏覽器填入，網頁無法指定）。
 56. 2026-11-16：使用者決定 Day 1 最後三個 commit（`e19f74a`、`3486103`、`2ba3d1f`）例外，commit 前只跑 ruff 與新增的 T12、T13，全套測試交給 PR 上的 CI。`CLAUDE.md` 的通用規則不變。
+57. 2026-11-17：共用演算法表的 Python 讀取模組放在 `shared/pq_algorithms.py`，測試放在 `shared/tests/`。RP 與 authenticator 在協議中是不同角色，彼此不 import 對方的程式碼，共用的定義放在中立的 `shared/`。
+58. 2026-11-17：共用演算法表的 `status` 表示 COSE 編號是否已正式分配：`standard`（IANA 已分配，ML-DSA）或 `provisional`（IETF 草案暫定，FN-DSA），不採用交接文件的 `stable in repo`／`planned`。另新增 `signatureLengthFixed`，標明 FN-DSA 的 `signatureBytes` 是上限而不是固定長度。
+59. 2026-11-17：RP 與 authenticator 的 COSE → liboqs 對照從 Day 2 起改由共用演算法表產生，FN-DSA -54/-55 隨之對兩端生效；RP 的 `hosted_algorithms` 不變，宣告與註冊仍只限 ML-DSA，Day 3 才開放。

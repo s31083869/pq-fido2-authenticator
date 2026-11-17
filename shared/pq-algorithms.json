@@ -1,0 +1,55 @@
+{
+  "description": "共用演算法表：COSE 演算法編號與 liboqs 名稱、金鑰與簽章大小的唯一資料來源（決策 D3）。RP、authenticator、Extension、WASM bridge 都從這裡讀，不再各自寫死。大小單位為 bytes。signatureLengthFixed 為 false 時，signatureBytes 是上限而不是固定長度。status：standard 表示 COSE 編號已由 IANA 正式分配，provisional 表示仍是 IETF 草案申請中的暫定編號。依據：ML-DSA 為 RFC 9964、FIPS 204 Table 2；FN-DSA 為 draft-ietf-cose-falcon-04、Falcon 第三輪規格 v1.2 第 3.11 節、liboqs docs/algorithms/sig/falcon.yml。",
+  "algorithms": [
+    {
+      "label": "ML-DSA-44",
+      "coseAlg": -48,
+      "oqsName": "ML-DSA-44",
+      "publicKeyBytes": 1312,
+      "privateKeyBytes": 2560,
+      "signatureBytes": 2420,
+      "signatureLengthFixed": true,
+      "status": "standard"
+    },
+    {
+      "label": "ML-DSA-65",
+      "coseAlg": -49,
+      "oqsName": "ML-DSA-65",
+      "publicKeyBytes": 1952,
+      "privateKeyBytes": 4032,
+      "signatureBytes": 3309,
+      "signatureLengthFixed": true,
+      "status": "standard"
+    },
+    {
+      "label": "ML-DSA-87",
+      "coseAlg": -50,
+      "oqsName": "ML-DSA-87",
+      "publicKeyBytes": 2592,
+      "privateKeyBytes": 4896,
+      "signatureBytes": 4627,
+      "signatureLengthFixed": true,
+      "status": "standard"
+    },
+    {
+      "label": "FN-DSA-512",
+      "coseAlg": -54,
+      "oqsName": "Falcon-512",
+      "publicKeyBytes": 897,
+      "privateKeyBytes": 1281,
+      "signatureBytes": 752,
+      "signatureLengthFixed": false,
+      "status": "provisional"
+    },
+    {
+      "label": "FN-DSA-1024",
+      "coseAlg": -55,
+      "oqsName": "Falcon-1024",
+      "publicKeyBytes": 1793,
+      "privateKeyBytes": 2305,
+      "signatureBytes": 1462,
+      "signatureLengthFixed": false,
+      "status": "provisional"
+    }
+  ]
+}
