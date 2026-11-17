@@ -148,7 +148,7 @@ def test_loader_rejects_malformed_entry(
     訊息指出是第幾筆（從 0 起算）的哪個欄位。
 
     依據：workflow.md F02 規定的欄位；壞掉的表必須在程式啟動時就被擋下，不能等到驗章時才出錯。
-    壞的那一筆放在第 1 筆（索引 1），確認訊息指的是正確的位置。
+    壞的那一筆放在索引 1（第二筆），確認訊息指的是正確的位置。
     """
     entries = [_entry("ML-DSA-44", -48, "ML-DSA-44"), bad_entry]
     with pytest.raises(ValueError, match=rf"algorithms\[1\]\.{field}"):

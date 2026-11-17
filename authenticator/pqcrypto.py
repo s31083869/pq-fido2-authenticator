@@ -36,6 +36,11 @@ class PQCSignatureSuite:
     """
 
     def __init__(self, algorithm: int):
+        """依 COSE 編號找出 liboqs 名稱，存在 self.oqs_name 供之後的操作使用。
+
+        輸入：COSE 演算法編號，例如 -54。
+        不在共用演算法表中時拋出 ValueError，讓呼叫端在產生金鑰之前就知道不支援。
+        """
         if algorithm not in COSE_ALG_TO_OQS:
             raise ValueError(f"Unsupported COSE algorithm: {algorithm}")
         self.algorithm = algorithm

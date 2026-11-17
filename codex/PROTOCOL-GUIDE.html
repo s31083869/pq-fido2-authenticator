@@ -1176,7 +1176,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="term"><dt>COSE alg</dt><dd>演算法的整數編號，例如 -7 = ES256、-48 = ML-DSA-44。</dd></div>
       <div class="term"><dt>暫定編號（provisional）</dt><dd>IETF 草案申請、但 IANA 尚未正式分配的 COSE alg，例如 FN-DSA 的 -54、-55；正式分配前可能變動。已正式分配的（例如 ML-DSA 的 -48/-49/-50）在共用演算法表中標為 standard。</dd></div>
       <div class="term"><dt>共用演算法表（shared registry）</dt><dd><code>shared/pq-algorithms.json</code>：COSE alg 與 liboqs 名稱、金鑰與簽章大小的唯一資料來源。RP、authenticator 都從這裡讀，避免兩邊把同一個編號翻成不同的演算法。</dd></div>
-      <div class="term"><dt>Padded／unpadded（補滿／不補滿）</dt><dd>Falcon 簽章的兩種格式。本專案用的不補滿格式（liboqs 的 Falcon-512）經過壓縮、長度每次不同，只有上限；補滿格式（Falcon-padded-512）補 0 到固定長度。</dd></div>
+      <div class="term"><dt>Padded／unpadded（補滿／不補滿）</dt><dd>Falcon 簽章的兩種格式，兩者都先經過壓縮編碼。本專案用的不補滿格式（liboqs 的 Falcon-512）直接使用壓縮結果，長度每次不同，只有上限（752／1462 bytes）；補滿格式（Falcon-padded-512）再補 0 到固定長度（666／1280 bytes）。</dd></div>
       <div class="term"><dt>base64url</dt><dd>把二進位轉成可放進網址與 JSON 的文字：用 - 和 _，結尾不補 =。</dd></div>
     </dl>
   </div>
