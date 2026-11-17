@@ -4,7 +4,7 @@
 |---|---|
 | 日期 | 2026-11-17 |
 | 分支 | `day-02`（從 `origin/main` 7020c73 開出） |
-| 狀態 | 實作中：T1–T8 完成；依獨立審查追加 T9、T10 |
+| 狀態 | 完工：T1–T10、三項輕微修正與 T9 (i) 的加強都已完成，待 PR 的 CI 結果 |
 
 ---
 
@@ -120,6 +120,8 @@
 - RP 註冊時沒有檢查公鑰長度是否符合演算法（`rp_server/services.py:121–123` 只檢查是 bytes），也沒有檢查 COSE_Key 的 kty（`1`）是否為 7（AKP）。長度錯誤或任意長度的公鑰都會被存進 DB；共用表有 `publicKeyBytes` 之後就能檢查。Day 3 會修改這個函式，可以一併考慮，但要先經過使用者同意。
 - Python authenticator 先要求使用者驗證（Windows Hello，`authenticator/service.py:138`），才檢查演算法（`:153`）。所以 RP 只提供不支援的演算法（例如只有 `[-7]`）時，使用者會先看到 Windows Hello 視窗，之後才被拒絕。WebAuthn §6.3.2 的步驟 2（檢查演算法，不支援就回 NotSupportedError）排在使用者同意與驗證之前。測試用的是 NoopVerifier，看不出這個問題。和 Day 1 待辦中「找不到憑證時先跳 Windows Hello」是同一類問題，可以一起處理。
 - T5 比對的是「值相等」，所以某一端改回寫死、但五筆內容都和共用表相同時，T5 抓不到。這是設計極限：寫死但內容錯的情況都抓得到。若要更嚴格，可以另外確認兩端的對照是由 `cose_to_oqs_names()` 產生。
+- 讀取模組的測試還有三個缺口（第 2 次獨立審查）：名稱欄位為非字串（例如 `label: 123`）、`"algorithms"` 存在但不是清單，這兩種情況都沒有測試；`_entry()` 的 docstring 沒有提到 T9 也會使用它。
+- 協議導覽的 Padded 說明可以補一句：補滿格式（666 bytes）比不補滿格式的上限（752 bytes）小，是因為壓縮結果超過固定長度時會重新簽章。
 
 ### 對齊紀錄
 
@@ -178,6 +180,7 @@ T9、T10 是新增的測試，T1–T8 的內容不變。除了 T9 (h)，其他�
 #### 追加工作的對齊紀錄
 
 - 使用者核准 T9、T10，並同意今天一併修正三項輕微項目（11/17）。
+- 第 2 次獨立審查指出 T9 (i) 的斷言 `match="algorithms"` 會比對到暫存檔名，實際上沒有作用。使用者同意加強為 `match=r"'algorithms' list"`（11/17）。這讓測試真的檢查核准的預期「訊息提到 algorithms」，不是改弱。
 
 ---
 
@@ -194,16 +197,23 @@ T9、T10 是新增的測試，T1–T8 的內容不變。除了 T9 (h)，其他�
 | `a56abb7` | `shared/__init__.py`（新增） | 讓 `shared/` 成為 Python 套件，說明它放 RP 與 authenticator 共用的定義 | RP 與 authenticator 都能 `import shared` |
 | `a56abb7` | `shared/pq_algorithms.py:19–23` | `REGISTRY_PATH`、`VALID_STATUSES` | 表的位置與 status 合法值 |
 | `a56abb7` | `shared/pq_algorithms.py:27–62` | `PQAlgorithm`（不可修改的資料物件）與 JSON 欄位對照 `_FIELDS` | 用 Python 慣用的欄位名稱表示一筆演算法 |
-| `a56abb7` | `shared/pq_algorithms.py:65–110` | `_check_field()`、`_parse_entry()`：檢查缺欄位、多出的欄位、型別（bool 不當整數）、status | 壞掉的表在啟動時就被擋下 |
-| `a56abb7` | `shared/pq_algorithms.py:113–151` | `load_algorithms()`（含 COSE 編號與 liboqs 名稱的重複檢查）、模組載入時的 `ALGORITHMS`、`cose_to_oqs_names()` | 兩端從同一份表取得對照 |
-| `a56abb7` | `shared/tests/test_pq_algorithms.py:1–155`（新增） | T1（第 62 行）、T2（第 85 行）、T3（第 115 行）、T4（第 144 行） | 驗證共用表與讀取模組 |
+| `a56abb7` | `shared/pq_algorithms.py:65–113` | `_check_field()`、`_parse_entry()`：檢查缺欄位、多出的欄位、型別（bool 不當整數）、status | 壞掉的表在啟動時就被擋下 |
+| `a56abb7` | `shared/pq_algorithms.py:116–154` | `load_algorithms()`（含 COSE 編號與 liboqs 名稱的重複檢查）、模組載入時的 `ALGORITHMS`、`cose_to_oqs_names()` | 兩端從同一份表取得對照 |
+| `a56abb7` | `shared/tests/test_pq_algorithms.py:1–155`（新增，後續 commit 擴充到 215 行） | T1（第 62 行）、T2（第 85 行）、T3（第 115 行）、T4（第 144 行） | 驗證共用表與讀取模組 |
 | `a56abb7` | `pyproject.toml:32`、`.github/workflows/ci.yml:50`、`:53`、`CLAUDE.md:83–84` | `testpaths` 加入 `shared/tests`；ruff 路徑加入 `shared` | 依 `CLAUDE.md` 規定同步新增的測試資料夾；CI 也會檢查 |
 | `0533723` | `authenticator/pqcrypto.py:10`、`16–20` | `COSE_ALG_TO_OQS` 改由 `cose_to_oqs_names()` 產生 | 不再寫死，和 RP 一致 |
-| `0533723` | `authenticator/pqcrypto.py:30–69` | 補齊 `PQCSignatureSuite` 與各方法的註解（邏輯不變） | 依守則補註解 |
+| `0533723` | `authenticator/pqcrypto.py:30–74` | 補齊 `PQCSignatureSuite` 與各方法的註解（邏輯不變；`__init__` 的 docstring 在 `8504318` 補上） | 依守則補註解 |
 | `0533723` | `rp_server/services.py:19`、`197–213` | `COSE_TO_OQS` 改由 `cose_to_oqs_names()` 產生，補齊 `_cose_to_oqs()` 的註解 | 不再寫死，和 authenticator 一致 |
 | `0533723` | `authenticator/tests/test_pqcrypto.py:1–94`（新增） | T5 authenticator 端（第 19 行）、T6（第 32 行）、T8（第 64、74 行） | 驗證 authenticator 端 |
 | `0533723` | `rp_server/tests/test_authentication_verify.py:1–7`、`26–27`、`145–189` | 模組說明更新；T5 RP 端（第 145 行）、T7（第 157 行） | 驗證 RP 端 |
 | `7aa0678` | `codex/PROTOCOL-GUIDE.html` 第 8.2、10、11 章 | 新增 `shared/` 目錄卡片、更新測試數、名詞表新增 3 個名詞 | 導覽跟上程式；新術語進名詞表 |
+| `f6dcb84` | `codex/worklog/day-02.md` | 開工段落新增「追加工作」（T9、T10、輕微項目與核准紀錄）；完工段落記錄 T1–T8 與獨立審查 | 在寫測試之前留下追加測試案例的核准紀錄 |
+| `2dba51e` | `shared/pq_algorithms.py:65–93`（關鍵在第 90 行） | `_check_field()` 檢查 status 前先確認是字串，補齊函式說明 | 清單這類值不再丟出 `TypeError`，壞掉的表一律拋出 `ValueError` |
+| `2dba51e` | `shared/tests/test_pq_algorithms.py:157–215` | T9 (a)–(h)（第 193 行）、T9 (i)（第 207 行） | 讀取模組的每一項檢查都有測試保護 |
+| `2dba51e` | `rp_server/tests/test_authentication_verify.py:192–215` | T10 | RP 遇到不認得的演算法回 400 的行為有測試保護 |
+| `8504318` | `authenticator/pqcrypto.py:38–43`、`codex/PROTOCOL-GUIDE.html:1179`、`shared/tests/test_pq_algorithms.py:151` | `__init__` 補 docstring；更正 Padded／unpadded 的說明；T4 docstring 改為「索引 1（第二筆）」 | 依獨立審查的輕微項目，只改註解與文件 |
+| `7f1b2dc` | `shared/tests/test_pq_algorithms.py:207–217` | T9 (i) 的斷言改為比對 `'algorithms' list`，docstring 說明原因 | 依第 2 次獨立審查，讓斷言不會碰巧比對到檔名 |
+| 完工紀錄 | `codex/PROTOCOL-GUIDE.html:1108` | Python 測試數改為 67 個 | 導覽跟上最終的測試數 |
 | 完工紀錄 | `codex/REPORTS.md` | Decision Log 第 57–59 號 | 記錄今天的三項決定 |
 | 完工紀錄 | `codex/FN-DSA-PLAN.md` | 勾選 Day 2 | 讓計畫和實際進度一致 |
 | 完工紀錄 | `codex/worklog/day-02.md` | 完工段落 | 本段 |
@@ -217,10 +227,13 @@ T9、T10 是新增的測試，T1–T8 的內容不變。除了 T9 (h)，其他�
 | T6 | ML-DSA 三個綠燈；FN-DSA-512、FN-DSA-1024 紅燈：`ValueError: Unsupported COSE algorithm: -54`（-55 相同） | 綠燈 |
 | T7 | ML-DSA 三個綠燈；FN-DSA-512、FN-DSA-1024 紅燈：400 `Unsupported algorithm` | 綠燈 |
 | T8 | 綠燈（回歸保護） | 綠燈 |
+| T9 (h) | 紅燈：`TypeError: unhashable type: 'list'` | 綠燈 |
+| T9 (a)–(g)、(i) | 綠燈（實作已在 `a56abb7`；有效性由破壞檢查證明） | 綠燈 |
+| T10 | 綠燈（回歸保護；有效性由破壞檢查證明） | 綠燈 |
 
-T5–T8 寫好、兩端尚未切換時，全套為 6 個失敗、51 個通過，失敗的正是上表預期的 6 個。和開工段落的「實作前預期」完全一致。
+T5–T8 寫好、兩端尚未切換時，全套為 6 個失敗、51 個通過，失敗的正是上表預期的 6 個。和開工段落的「實作前預期」完全一致。T9、T10 寫好、尚未修正 status 檢查時，全套為 1 個失敗、66 個通過，失敗的正是 T9 (h)。
 
-整體：Python 測試從 32 個增為 57 個，Extension 11 個、Frontend 4 個。`9f6ea0b`、`a56abb7`、`0533723` commit 前都跑過 8 項必跑檢查並全部通過；`7aa0678` 只改協議導覽，程式和 `0533723` 相同，commit 前沒有重跑。
+整體：Python 測試從 32 個增為 67 個，Extension 11 個、Frontend 4 個。`9f6ea0b`、`a56abb7`、`0533723`、`2dba51e`、`8504318`、`7f1b2dc` commit 前都跑過 8 項必跑檢查並全部通過。`7aa0678`、`f6dcb84` 只改文件，程式和前一個 commit 相同，commit 前沒有重跑；`7aa0678` 由獨立審查補跑，全部通過。
 
 ### 破壞檢查
 
@@ -229,12 +242,20 @@ T5–T8 寫好、兩端尚未切換時，全套為 6 個失敗、51 個通過，
 | T3 | 拿掉 `load_algorithms()` 裡兩個重複檢查的 `raise` | T3 的兩個案例都變紅，其他 9 個仍綠 |
 | T5 | authenticator 的 `COSE_ALG_TO_OQS` 改回寫死的三筆 ML-DSA | T5（authenticator 端）與 T6 的 FN-DSA-512、FN-DSA-1024 變紅，共 3 個 |
 | T5、T7 | RP 的 `COSE_TO_OQS` 把 -54 改對到 `Falcon-1024`（確認問題 2 的情境） | T5（RP 端）與 T7 的 FN-DSA-512 變紅；T7 的錯誤正是 400 `Invalid signature`，和確認問題 2 的說明一致 |
+| T9 (a)(b) | 整數欄位改用 `isinstance(value, int)` | 只有 (a)(b) 變紅 |
+| T9 (c) | 接受未知欄位 | 只有 (c) 變紅 |
+| T9 (d) | 大小欄位接受 ≤ 0 | 只有 (d) 變紅 |
+| T9 (e) | 不檢查 `signatureLengthFixed` 的型別 | 只有 (e) 變紅 |
+| T9 (f)(g) | 名稱接受空字串 | 只有 (f)(g) 變紅 |
+| T9 (i) | 拿掉「必須有 `algorithms` 清單」的檢查 | 只有 (i) 變紅 |
+| T9 (i)（`7f1b2dc` 加強斷言後補做） | 錯誤訊息改成 `{path} is malformed`，不再提到 'algorithms' list | 只有 (i) 變紅（加強前這個破壞抓不到） |
+| T10 | `_cose_to_oqs()` 遇到不認得的編號改成退回 `ML-DSA-44` | 只有 T10 變紅 |
 
 每次檢查後都已改回正確的實作，並用 SHA-256 確認和破壞前完全相同。
 
 ### 獨立審查
 
-由沒看過實作過程的子代理審查 `origin/main..7aa0678`。它的做法：
+**第 1 次（T1–T8，`origin/main..7aa0678`）**：由沒看過實作過程的子代理審查 `origin/main..7aa0678`。它的做法：
 - 用 `git worktree` 分別取出 5 個版本，逐一執行 pytest 與 ruff。
 - 把新測試放進實作前的版本，重現紅燈。
 - 用 29 種方式改壞實作。
@@ -248,15 +269,15 @@ T5–T8 寫好、兩端尚未切換時，全套為 6 個失敗、51 個通過，
 
 | 審查意見 | 分類 | 處理 |
 |---|---|---|
-| 讀取模組有 6 項檢查沒有測試保護（bool 當整數、未知欄位、大小 ≤ 0、`signatureLengthFixed` 型別、空字串名稱、缺 `algorithms` 清單） | 建議 | 使用者核准 T9，今天補上 |
-| `status` 為不能雜湊的值時丟 `TypeError` 而不是 `ValueError` | 建議 | 納入 T9 (h)，今天修正 |
-| RP `_cose_to_oqs()` 遇到未知演算法回 400，這個行為沒有測試 | 建議 | 使用者核准 T10，今天補上 |
+| 讀取模組有 6 項檢查沒有測試保護（bool 當整數、未知欄位、大小 ≤ 0、`signatureLengthFixed` 型別、空字串名稱、缺 `algorithms` 清單） | 建議 | 使用者核准 T9，已新增並做破壞檢查。commit `2dba51e` |
+| `status` 為不能雜湊的值時丟 `TypeError` 而不是 `ValueError` | 建議 | 納入 T9 (h)，先紅後綠修正。commit `2dba51e` |
+| RP `_cose_to_oqs()` 遇到未知演算法回 400，這個行為沒有測試 | 建議 | 使用者核准 T10，已新增並做破壞檢查。commit `2dba51e` |
 | 演算法檢查排在使用者驗證之後（既有問題） | 建議 | 記入待辦清單 |
 | T5 抓不到「寫死但內容完全正確」 | 建議 | 記入待辦清單（設計極限） |
 | `7aa0678` commit 前沒有重跑必跑清單 | 輕微 | 工作紀錄已註明；審查者補跑全部通過 |
-| `PQCSignatureSuite.__init__` 沒有 docstring | 輕微 | 使用者同意，今天修正 |
-| 協議導覽「Padded／unpadded」的寫法會讓人以為補滿格式沒有壓縮 | 輕微 | 使用者同意，今天修正 |
-| T4 docstring「第 1 筆（索引 1）」容易誤讀 | 輕微 | 使用者同意，今天修正 |
+| `PQCSignatureSuite.__init__` 沒有 docstring | 輕微 | 已修正。commit `8504318` |
+| 協議導覽「Padded／unpadded」的寫法會讓人以為補滿格式沒有壓縮 | 輕微 | 已修正。commit `8504318` |
+| T4 docstring「第 1 筆（索引 1）」容易誤讀 | 輕微 | 已修正。commit `8504318` |
 | T7 單獨抓不到 JSON 的 `oqsName` 寫錯 | 輕微 | 不處理：這類錯誤由 T1、T2 負責 |
 | 執行期間不讀 `status`；Falcon 的 AVX2 實作沒有宣稱「不依秘密值分支」 | 輕微（提醒） | 不處理：前者是 REPORTS 第 59 號的決定；後者是 PoC 可接受的風險，Day 11 檢視安全 backlog 時再記錄 |
 | 規格「第 3.11.6 節」的節次無法在 repo 內逐字查證 | 輕微 | 不處理：數值已用編碼公式與三處 liboqs 來源交叉確認 |
@@ -267,3 +288,19 @@ T5–T8 寫好、兩端尚未切換時，全套為 6 個失敗、51 個通過，
 - RP 的 `hosted_algorithms` 不變。
 - authenticator 只有在 RP 把 -54/-55 列在前面時才會選 FN-DSA。
 - 工作紀錄的行號與數字都正確。
+
+**第 2 次（T9、T10，`2dba51e`、`8504318`）**：由另一個沒看過實作過程的子代理審查。
+- **結論**：沒有必須修正的項目。T9 (a)–(i)、T10 都忠實對應核准的案例。
+- **紅燈重現**：在 `f6dcb84` 上放進新測試，結果是 1 失敗、66 通過，唯一的失敗是 T9 (h) 的 `TypeError`。
+- **破壞檢查**：用 12 種方式改壞，核准的 7 項都有對應的測試變紅。
+- **逐 commit 驗證**：兩個 commit 單獨取出來都全綠。
+- **`8504318`**：拿掉 docstring 後的 AST 和 `2dba51e` 相同，HTML 只改了 1 行，確認只改註解與文件。
+
+| 審查意見 | 分類 | 處理 |
+|---|---|---|
+| T9 (i) 的 `match="algorithms"` 實際上沒有檢查到東西：錯誤訊息開頭是檔案路徑，暫存檔名 `pq-algorithms.json` 本身就含有 "algorithms"。把訊息改掉，測試仍然全綠 | 建議 | 使用者同意，改為 `match=r"'algorithms' list"`，並補做破壞檢查。commit `7f1b2dc` |
+| 名稱欄位只測了空字串，沒有測非字串（`label: 123`） | 輕微 | 記入待辦清單（不在核准範圍內） |
+| `"algorithms": {}`（有 key、但不是清單）沒有測試 | 輕微 | 記入待辦清單（不在核准範圍內） |
+| `_entry` 的 docstring 只寫「供 T3、T4」，現在 T9 也使用它 | 輕微 | 記入待辦清單（`_entry` 這次沒有修改） |
+| T10 靠回應訊息不同，間接證明 RP 沒有嘗試驗章 | 輕微 | 不處理：退回 ML-DSA-44 的破壞會得到 `Invalid signature`，目前抓得到 |
+| 導覽的 Padded 說明可以補一句：補滿格式 666 bytes 比不補滿的上限 752 bytes 小，是因為壓縮結果超過固定長度時會重新簽章 | 輕微 | 記入待辦清單，Day 11 同步文件時處理 |

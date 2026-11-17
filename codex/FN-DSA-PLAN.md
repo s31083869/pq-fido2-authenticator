@@ -83,12 +83,14 @@
 
 **完成標準**：所有既有測試通過，ML-DSA 行為不變。結果：Python 測試由 14 個增為 32 個，全部通過。
 
-### Day 2｜11/17：F01 + F02 共用演算法表
-- [ ] 建立 `shared/pq-algorithms.json`，五個演算法的欄位：`label`、`coseAlg`、`oqsName`、公鑰／私鑰／簽章大小、簽章長度是否固定、`status`（1h）
-- [ ] Python 讀取模組，RP 與 authenticator 共用（1h）
-- [ ] 測試：表內大小等於 liboqs 實際大小；COSE 編號不重複（1h）
+### Day 2｜11/17：F01 + F02 共用演算法表（已完成，詳見 `codex/worklog/day-02.md`）
+- [x] 建立 `shared/pq-algorithms.json`，五個演算法的欄位：`label`、`coseAlg`、`oqsName`、公鑰／私鑰／簽章大小、簽章長度是否固定、`status`（1h）
+- [x] Python 讀取模組，RP 與 authenticator 共用（1h）
+- [x] 測試：表內大小等於 liboqs 實際大小；COSE 編號不重複（1h）
+- [x] （11/17 決定）FN-DSA 從 Day 2 起對兩端生效，所以今天就補上五個演算法的真實密碼學測試（authenticator 簽章、RP 驗章）
+- [x] （11/17 追加，依獨立審查）讀取模組的欄位檢查、RP 遇到不認得的演算法回 400，都補上測試（T9、T10）
 
-**完成標準**：Python 兩端的 mapping 都改從共用表讀取，既有測試通過。
+**完成標準**：Python 兩端的 mapping 都改從共用表讀取，既有測試通過。結果：Python 測試由 32 個增為 67 個，全部通過。
 
 ### Day 3｜11/18：F03 + F04 RP Server
 - [ ] `hosted_algorithms` 加入 -54/-55（0.5h）
