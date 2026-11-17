@@ -153,3 +153,63 @@ def test_loader_rejects_malformed_entry(
     entries = [_entry("ML-DSA-44", -48, "ML-DSA-44"), bad_entry]
     with pytest.raises(ValueError, match=rf"algorithms\[1\]\.{field}"):
         load_algorithms(_write_table(tmp_path, entries))
+
+
+def _with(**changes) -> dict:
+    """以一筆格式正確的 ML-DSA-65 資料為基礎，套用 changes 後回傳，用來組出 T9 的壞資料。"""
+    return {**_entry("ML-DSA-65", -49, "ML-DSA-65"), **changes}
+
+
+@pytest.mark.parametrize(
+    ("bad_entry", "field"),
+    [
+        # (a)(b) JSON 的 true／false 不是數字（RFC 8259 §3），但 Python 的 bool 是 int 的子類別，
+        # 若只用 isinstance(value, int) 檢查，true 會被當成編號 1 或大小 1 接受
+        (_with(coseAlg=True), "coseAlg"),
+        (_with(publicKeyBytes=True), "publicKeyBytes"),
+        # (c) 拼錯的欄位若被默默忽略，Python 與之後讀同一份表的 TypeScript 可能看到不同的資料
+        (_with(oqsname="ML-DSA-65"), "oqsname"),
+        # (d) 長度為 0 的金鑰不可能存在
+        (_with(publicKeyBytes=0), "publicKeyBytes"),
+        # (e) 字串 "false" 在 JavaScript 與 Python 中都會被當成「真」，必須是 JSON 的 true／false
+        (_with(signatureLengthFixed="false"), "signatureLengthFixed"),
+        # (f)(g) 空字串的名稱：給人看的名稱是空的，或叫不到任何 liboqs 演算法
+        (_with(label=""), "label"),
+        (_with(oqsName=""), "oqsName"),
+        # (h) 不能雜湊的值（清單）：檢查本身不能因為型別而丟出 ValueError 以外的例外
+        (_with(status=["standard"]), "status"),
+    ],
+    ids=[
+        "bool-cose-alg",
+        "bool-public-key-bytes",
+        "unknown-field",
+        "zero-public-key-bytes",
+        "string-signature-length-fixed",
+        "empty-label",
+        "empty-oqs-name",
+        "list-status",
+    ],
+)
+def test_loader_rejects_wrongly_typed_or_unknown_field(
+    tmp_path: Path, bad_entry: dict, field: str
+) -> None:
+    """T9 (a)–(h)：欄位型別錯誤、值不合理或欄位名稱不認得時，讀取模組拋出 ValueError，
+    訊息開頭指出 algorithms[1].<欄位>（索引 1，也就是第二筆）。
+
+    依據：RFC 8259 §3（true／false 是獨立的字面值，不是數字）；workflow.md F02 規定的欄位；
+    D3「唯一的資料來源」；模組說明承諾壞掉的表一律拋出 ValueError。
+    """
+    entries = [_entry("ML-DSA-44", -48, "ML-DSA-44"), bad_entry]
+    with pytest.raises(ValueError, match=rf"^algorithms\[1\]\.{field}\b"):
+        load_algorithms(_write_table(tmp_path, entries))
+
+
+def test_loader_rejects_table_without_algorithm_list(tmp_path: Path) -> None:
+    """T9 (i)：整份表沒有 algorithms 清單時，讀取模組拋出 ValueError，訊息提到 algorithms。
+
+    依據：共用表的結構是 {"algorithms": [...]}；少了清單代表檔案寫錯，不能當成「沒有任何演算法」。
+    """
+    path = tmp_path / "pq-algorithms.json"
+    path.write_text(json.dumps({"items": []}), encoding="utf-8")
+    with pytest.raises(ValueError, match="algorithms"):
+        load_algorithms(path)

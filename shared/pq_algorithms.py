@@ -69,7 +69,8 @@ def _check_field(where: str, key: str, value: Any) -> None:
     錯誤訊息的開頭是「位置.欄位」，讓人一眼看出是哪一筆的哪個欄位寫錯。
 
     注意 Python 的 bool 是 int 的子類別（True == 1），所以整數欄位用 type(value) is int 判斷，
-    避免 true/false 被當成合法的編號或大小。
+    避免 true/false 被當成合法的編號或大小（JSON 的 true/false 不是數字，RFC 8259 §3）。
+    任何型別的錯誤值都只會拋出 ValueError，不會因為型別本身丟出其他例外。
     """
     if key in ("label", "oqsName"):
         if not isinstance(value, str) or not value:
@@ -84,7 +85,9 @@ def _check_field(where: str, key: str, value: Any) -> None:
         if not isinstance(value, bool):
             raise ValueError(f"{where}.{key} must be true or false, got {value!r}")
     elif key == "status":
-        if value not in VALID_STATUSES:
+        # 先確認是字串再查集合：清單這類不能雜湊的值直接查 frozenset 會丟 TypeError，
+        # 違反「壞掉的表一律拋出 ValueError」
+        if not isinstance(value, str) or value not in VALID_STATUSES:
             raise ValueError(
                 f"{where}.{key} must be one of {sorted(VALID_STATUSES)}, got {value!r}"
             )

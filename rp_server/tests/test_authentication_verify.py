@@ -187,3 +187,29 @@ def test_verify_accepts_real_signature_for_every_registry_algorithm(
 
     assert response.status_code == 200, response.get_json()
     assert response.get_json()["success"] is True
+
+
+def test_verify_rejects_credential_with_algorithm_outside_registry(
+    tmp_path: Path,
+) -> None:
+    """T10：DB 中憑證的演算法是 -7（ES256，不在共用表中）時，RP 回 400 Unsupported algorithm。
+
+    依據：WebAuthn §7.2，RP 用註冊時保存的演算法驗章；不認得的演算法無法驗章，
+    必須拒絕，不能改用其他演算法。簽章內容隨意，因為 RP 根本不應該走到驗章那一步。
+    """
+    settings = RPSettings(database_url=f"sqlite:///{tmp_path / 'rp.db'}")
+    client = create_app(settings).test_client()
+    with Database(settings).session() as session:
+        user = ensure_user(session, USERNAME, "Alice", user_handle="alice-handle")
+        store_credential(session, user, CREDENTIAL_ID, _b64url(b"es256-public-key"), -7)
+
+    challenge = _issue_challenge(client)
+    client_data_json = (
+        f'{{"type":"webauthn.get","challenge":"{challenge}",'
+        f'"origin":"http://localhost:3000"}}'
+    ).encode("utf-8")
+
+    response = _verify(client, client_data_json, _login_auth_data(), b"signature")
+
+    assert response.status_code == 400
+    assert response.get_json()["message"] == "Unsupported algorithm"
