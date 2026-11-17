@@ -1017,7 +1017,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <h3><span class="actor rp">rp_server/</span></h3>
       <ul>
         <li><span class="path">app.py</span><span>四支 API：註冊與登入各兩支（options、verify）</span></li>
-        <li><span class="path">services.py</span><span>驗證邏輯：解析 authenticatorData、CBOR、COSE，呼叫 liboqs 驗章</span></li>
+        <li><span class="path">services.py</span><span>驗證邏輯：解析 authenticatorData、CBOR、COSE，依共用演算法表選出 liboqs 演算法驗章</span></li>
         <li><span class="path">config.py</span><span>rp_id、origin、hosted_algorithms 等設定</span></li>
         <li><span class="path">models.py</span><span>資料表：User、Credential</span></li>
         <li><span class="path">challenges.py</span><span>暫存已發出的 challenge（存在記憶體）</span></li>
@@ -1029,10 +1029,17 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
         <li><span class="path">__main__.py</span><span>啟動入口</span></li>
         <li><span class="path">bridge.py</span><span>Playwright 攔截與注入腳本</span></li>
         <li><span class="path">service.py</span><span>make_credential()、get_assertion()</span></li>
-        <li><span class="path">pqcrypto.py</span><span>COSE 編號 → liboqs 演算法名稱；產生金鑰、簽章</span></li>
+        <li><span class="path">pqcrypto.py</span><span>依共用演算法表把 COSE 編號翻成 liboqs 演算法名稱；產生金鑰、簽章</span></li>
         <li><span class="path">webauthn.py</span><span>組出 authenticatorData、COSE_Key、attestationObject</span></li>
         <li><span class="path">storage.py</span><span>憑證儲存（Windows DPAPI／keyring）</span></li>
         <li><span class="path">touch.py</span><span>Windows Hello、Touch ID 使用者驗證</span></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>shared/</h3>
+      <ul>
+        <li><span class="path">pq-algorithms.json</span><span>共用演算法表：五個演算法的 COSE 編號、liboqs 名稱、金鑰與簽章大小</span></li>
+        <li><span class="path">pq_algorithms.py</span><span>讀取並檢查共用表，RP 與 authenticator 都 import 它</span></li>
       </ul>
     </div>
     <div class="card">
@@ -1098,7 +1105,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <div class="two-col">
     <div class="card">
       <h3>已完成</h3>
-      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 32 個、Extension 11 個、前端 4 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。</p>
+      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 57 個、Extension 11 個、前端 4 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。</p>
     </div>
     <div class="card">
       <h3>進行中</h3>
@@ -1167,6 +1174,9 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="term"><dt>kty</dt><dd>COSE_Key 的金鑰類型欄位（標籤 1），例如 2 = EC2、7 = AKP。</dd></div>
       <div class="term"><dt>AKP（Algorithm Key Pair）</dt><dd>RFC 9964 定義的金鑰類型（kty = 7），用在公鑰是一整串 bytes 的後量子演算法。</dd></div>
       <div class="term"><dt>COSE alg</dt><dd>演算法的整數編號，例如 -7 = ES256、-48 = ML-DSA-44。</dd></div>
+      <div class="term"><dt>暫定編號（provisional）</dt><dd>IETF 草案申請、但 IANA 尚未正式分配的 COSE alg，例如 FN-DSA 的 -54、-55；正式分配前可能變動。已正式分配的（例如 ML-DSA 的 -48/-49/-50）在共用演算法表中標為 standard。</dd></div>
+      <div class="term"><dt>共用演算法表（shared registry）</dt><dd><code>shared/pq-algorithms.json</code>：COSE alg 與 liboqs 名稱、金鑰與簽章大小的唯一資料來源。RP、authenticator 都從這裡讀，避免兩邊把同一個編號翻成不同的演算法。</dd></div>
+      <div class="term"><dt>Padded／unpadded（補滿／不補滿）</dt><dd>Falcon 簽章的兩種格式。本專案用的不補滿格式（liboqs 的 Falcon-512）經過壓縮、長度每次不同，只有上限；補滿格式（Falcon-padded-512）補 0 到固定長度。</dd></div>
       <div class="term"><dt>base64url</dt><dd>把二進位轉成可放進網址與 JSON 的文字：用 - 和 _，結尾不補 =。</dd></div>
     </dl>
   </div>
