@@ -47,10 +47,10 @@ jobs:
         run: uv sync --locked
 
       - name: ruff check
-        run: uv run ruff check authenticator rp_server
+        run: uv run ruff check authenticator rp_server shared
 
       - name: ruff format --check
-        run: uv run ruff format --check authenticator rp_server
+        run: uv run ruff format --check authenticator rp_server shared
 
       # pyproject.toml 的 testpaths 已限定只收集專案自己的測試
       - name: pytest
