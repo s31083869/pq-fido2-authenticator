@@ -760,7 +760,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <li data-step="2" tabindex="0"><span class="num">2</span><div class="body"><span class="who actor rp">RP → 前端網頁</span><p>RP 產生 32 bytes 的隨機 challenge 並暫存起來，回傳註冊參數：<code>rp</code>（網站 id 與名稱）、<code>user</code>（使用者的隨機 user handle）、<code>pubKeyCredParams</code>（RP 接受的演算法，預設依序為 -49、-48、-50、-54、-55：ML-DSA 在前，FN-DSA 在後）、<code>excludeCredentials</code>（這個帳號已有的憑證，避免重複註冊）。</p><span class="where">程式：rp_server/app.py 的 register_options()</span></div></li>
       <li data-step="3" tabindex="0"><span class="num">3</span><div class="body"><span class="who actor client">前端網頁 → 攔截層</span><p>前端把 base64url 字串轉回 bytes，依使用者選的演算法調整清單順序，然後呼叫 <code>navigator.credentials.create({ publicKey })</code>。</p><span class="where">程式：frontend/src/pages/index.tsx</span></div></li>
       <li data-step="4" tabindex="0"><span class="num">4</span><div class="body"><span class="who actor client">攔截層 → Authenticator</span><p>這個 API 已經被攔截層改寫過：它把請求裡的二進位欄位轉成 base64url 字串，再交給我們的 authenticator。</p><span class="where">程式：authenticator/bridge.py（Python bridge）、extension/src/injected/（Extension）</span></div></li>
-      <li data-step="5" tabindex="0"><span class="num">5</span><div class="body"><span class="who actor auth">Authenticator 內部</span><p>依序完成：確認 rpId 和 origin 的網域一致 → 使用者驗證（Windows Hello）→ 檢查 excludeCredentials → 照 pubKeyCredParams 的順序，選第一個自己支援的演算法 → 用 liboqs 產生金鑰對 → 產生 32 bytes 的隨機 credential ID → 保存私鑰。</p><span class="where">程式：authenticator/service.py 的 make_credential()</span></div></li>
+      <li data-step="5" tabindex="0"><span class="num">5</span><div class="body"><span class="who actor auth">Authenticator 內部</span><p>依序完成：確認 rpId 和 origin 的網域一致 → 照 pubKeyCredParams 的順序，選第一個自己支援的演算法（都不支援就直接拒絕，不跳出 Windows Hello）→ 使用者驗證（Windows Hello）→ 檢查 excludeCredentials → 用 liboqs 產生金鑰對 → 產生 32 bytes 的隨機 credential ID → 保存私鑰。</p><span class="where">程式：authenticator/service.py 的 make_credential()</span></div></li>
       <li data-step="6" tabindex="0"><span class="num">6</span><div class="body"><span class="who actor auth">Authenticator → 前端網頁</span><p>回傳三樣東西：<code>clientDataJSON</code>（type 為 <code>webauthn.create</code>，加上 challenge 和 origin）、<code>authenticatorData</code>（內含 credential ID 與 COSE 格式的公鑰），以及把 authenticatorData 包成 CBOR 的 <code>attestationObject</code>（fmt 為 <code>none</code>）。</p><span class="where">程式：authenticator/webauthn.py</span></div></li>
       <li data-step="7" tabindex="0"><span class="num">7</span><div class="body"><span class="who actor client">前端網頁 → RP</span><p>前端把結果轉成 base64url，送到 <code>POST /register/verify</code>。</p><span class="where">程式：frontend/src/lib/webauthn.ts 的 serializeAttestation()</span></div></li>
       <li data-step="8" tabindex="0"><span class="num">8</span><div class="body"><span class="who actor rp">RP 內部</span><p>逐項檢查：type 是 <code>webauthn.create</code>、challenge 是剛才發出的那一個、origin 是自己的網站、authenticatorData 開頭的 rpIdHash 等於 SHA-256(rpId)、演算法在 <code>hosted_algorithms</code> 裡、公鑰的 kty 是 7（AKP）、公鑰長度等於共用演算法表中該演算法的長度（例如 -54 一定是 897 bytes）。全部通過後，把 credential ID、公鑰、演算法和 signCount = 0 存進資料庫。</p><span class="where">程式：rp_server/services.py 的 verify_registration_payload()</span></div></li>
@@ -796,9 +796,9 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <p><strong>Authenticator（筆電）依序判斷：</strong></p>
       <ol>
         <li>rpId <code>localhost</code> 等於 origin <code>http://localhost:3000</code> 的網域 → 通過。</li>
+        <li>前端已把使用者選的 -49 排在第一個；-49 在共用演算法表裡 → 選 <strong>ML-DSA-65</strong>。</li>
         <li>跳出 Windows Hello，使用者驗證成功。</li>
         <li>excludeCredentials 是空的 → 沒有重複。</li>
-        <li>前端已把使用者選的 -49 排在第一個；-49 在共用演算法表裡 → 選 <strong>ML-DSA-65</strong>。</li>
         <li>liboqs 產生 1952 bytes 的公鑰、4032 bytes 的私鑰，隨機產生 credential ID <strong>cred-A</strong>（<code>Xw3kR9pQ2vLmN8sT1yB6cD4fH7jK0aZeU5gIoW_-r2E</code>），以 DPAPI 加密存成 <code>credentials/Xw3k…r2E.bin</code>。</li>
         <li>回傳的 authenticatorData 共 2049 bytes：開頭固定 37 bytes ＋ AAGUID 16 ＋ ID 長度 2 ＋ credential ID 32 ＋ COSE_Key 1962（其中公鑰本身 1952）。</li>
       </ol>
@@ -1374,7 +1374,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <div class="two-col">
     <div class="card">
       <h3>已完成</h3>
-      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 80 個、Extension 11 個、前端 4 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。Day 3 起 RP 宣告並接受 FN-DSA（-54/-55），註冊時也會檢查公鑰的 kty 與長度。</p>
+      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 92 個、Extension 11 個、前端 4 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。Day 3 起 RP 宣告並接受 FN-DSA（-54/-55），註冊時也會檢查公鑰的 kty 與長度。Day 4 補上 Python authenticator 選用 FN-DSA 的測試，註冊時改為先檢查演算法、再做使用者驗證。</p>
     </div>
     <div class="card">
       <h3>進行中</h3>
