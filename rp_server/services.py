@@ -102,8 +102,10 @@ def verify_registration_payload(
     """驗證一次註冊（attestation）的結果，通過時回傳要存進 DB 的憑證資料。
 
     依 WebAuthn §7.1 依序檢查：clientDataJSON 的 type／challenge／origin、authenticatorData 的
-    rpIdHash、attested credential data 是否存在，最後檢查憑證公鑰（COSE_Key）：
-    alg 必須是 RP 宣告過的、kty 必須是 AKP、公鑰長度必須符合該演算法。任何一項不符都以 400 中止。
+    rpIdHash、attested credential data 是否存在、憑證公鑰的 alg 是 RP 宣告過的。
+    接著檢查公鑰本身的格式：kty 必須是 AKP（RFC 9964；kty 為必填欄位，RFC 9052 §7），
+    公鑰長度必須等於共用演算法表中該演算法的 publicKeyBytes。以上任何一項不符都以 400 中止
+    （輸入本身無法解析，例如 CBOR 格式錯誤時，目前會是 500，見 Day 3 待辦清單）。
     attestation 格式為 none，所以這裡不驗簽章，也無法確認 authenticator 真的持有對應的私鑰；
     公鑰檢查擋的是「格式錯誤的公鑰」，避免它存進 DB 後要到登入時才失敗。
 
