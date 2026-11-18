@@ -1,8 +1,9 @@
-"""Python authenticator 依 RP 的 pubKeyCredParams 選擇演算法的測試（Day 4 T3、T4）。
+"""Python authenticator 依 RP 的 pubKeyCredParams 選擇演算法的測試（Day 4 T3、T4、T5）。
 
 依據：WebAuthn §6.3.2 authenticatorMakeCredential：authenticator 用清單中「第一個自己支援的」演算法
-產生金鑰；清單裡都不支援時必須回錯誤，不能自己改用別的演算法。§5.4：清單依 RP 偏好由高到低排列。
-workflow.md F13（演算法選擇測試）、F16（RP 沒宣告 FN-DSA 時不得選用）。
+產生金鑰；清單裡都不支援時必須回錯誤，不能自己改用別的演算法，而且這項檢查排在取得使用者同意之前。
+§5.4：清單依 RP 偏好由高到低排列。workflow.md F13（演算法選擇測試）、F16（RP 沒宣告 FN-DSA 時不得選用）。
+T3 測選擇結果，T4 測都不支援時拒絕，T5 測演算法檢查先於使用者驗證。
 
 這裡只測「選哪個演算法」的流程，所以用假的簽章器（CLAUDE.md 允許單元測試用假的簽章器測流程）；
 FN-DSA 的真實密碼學由 test_fn_dsa_flow.py 的 T1、T2 負責。
@@ -32,9 +33,14 @@ class FakeSignatureSuite:
     """
 
     def __init__(self, algorithm: int) -> None:
+        """記下 authenticator 選出的 COSE 編號，供 generate_keypair() 放進假金鑰。"""
         self.algorithm = algorithm
 
     def generate_keypair(self) -> SimpleNamespace:
+        """回傳形狀和 PQCKeyPair 相同的假金鑰對（public_key、private_key 皆為 bytes）。
+
+        內容含 COSE 編號（例如 b"public--54"），出錯時一眼就能看出用的是哪個演算法。
+        """
         return SimpleNamespace(
             public_key=f"public-{self.algorithm}".encode(),
             private_key=f"private-{self.algorithm}".encode(),
@@ -126,9 +132,14 @@ class RecordingVerifier:
     """
 
     def __init__(self) -> None:
+        """呼叫次數從 0 開始。"""
         self.calls = 0
 
     def verify_user(self, prompt: str | None = None) -> bool:
+        """模擬一次成功的使用者驗證：呼叫次數加一並回傳 True，介面和 NoopVerifier 相同。
+
+        輸入：authenticator 要顯示給使用者的提示文字（這裡不使用）。
+        """
         self.calls += 1
         return True
 
@@ -136,12 +147,10 @@ class RecordingVerifier:
 @pytest.mark.parametrize(
     ("algs", "expected_calls", "should_succeed"),
     [
-        ([-7], 0, False),  # (a) 不支援：在使用者驗證之前就拒絕，一次都不呼叫
-        (
-            [-54],
-            1,
-            True,
-        ),  # (b) 支援：註冊成功，使用者驗證剛好一次（調整順序後沒有弄丟）
+        # (a) 不支援：在使用者驗證之前就拒絕，一次都不呼叫
+        ([-7], 0, False),
+        # (b) 支援：註冊成功，使用者驗證剛好一次（調整順序後沒有弄丟）
+        ([-54], 1, True),
     ],
     ids=["a-unsupported-rejected-before-uv", "b-supported-uv-once"],
 )

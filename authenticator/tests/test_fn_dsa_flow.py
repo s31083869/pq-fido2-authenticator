@@ -104,7 +104,9 @@ def test_make_credential_with_fn_dsa_emits_akp_cose_key(
 def test_get_assertion_with_fn_dsa_credential_verifies_with_falcon(
     authenticator, alg, oqs_name, pk_len, sig_max
 ) -> None:
-    """T2：用 T1 註冊的 FN-DSA 憑證登入，簽章能用 attestation 裡的公鑰以 Falcon 驗過。
+    """T2：先以和 T1 相同的方式註冊一張 FN-DSA 憑證，再用它登入，簽章能用 attestation 裡的公鑰以 Falcon 驗過。
+
+    每個測試各自註冊，彼此不共用狀態。
 
     依據：workflow.md F15；WebAuthn §6.3.3（簽章輸入為 authenticatorData ‖ SHA-256(clientDataJSON)）；
     Falcon v1.2 第 3.11.6 節與 liboqs 演算法資料表（簽章上限 752／1462 bytes）；CLAUDE.md「真實密碼學」。
