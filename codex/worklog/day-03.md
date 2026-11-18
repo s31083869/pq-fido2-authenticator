@@ -4,7 +4,7 @@
 |---|---|
 | 日期 | 2026-11-18 |
 | 分支 | `day-03`（從 `origin/main` 39d61e4 開出） |
-| 狀態 | 開工：測試案例已核准，實作中 |
+| 狀態 | 完工：T1–T5 與依獨立審查的兩項輕微修正都已完成，待 PR 的 CI 結果 |
 
 ---
 
@@ -106,7 +106,14 @@ authData（WebAuthn §6.1）
 
 ### 待辦清單（中途發現、今天不處理）
 
-- `hosted_algorithms` 沒有檢查每個編號都在共用表裡。若有人在設定裡放 -7，RP 會宣告並接受 -7 的註冊，但登入時 `_cose_to_oqs()` 一律回 400，這個帳號永遠無法登入。可以讓 `RPSettings` 在啟動時就拒絕共用表以外的編號。
+- `hosted_algorithms` 沒有檢查每個編號都在共用表裡。若有人在設定裡放 -7，RP 會對外宣告 -7。開工時的行為是「接受 -7 的註冊，但登入時 `_cose_to_oqs()` 一律回 400」。Day 3 加了長度檢查後，-7 在共用表查不到長度，註冊一律回 400 `Invalid public key`。這個分支是安全的（一律拒絕），但核准的測試沒有涵蓋它，錯誤訊息也不夠精確。建議讓 `RPSettings` 在啟動時就拒絕共用表以外的編號，這個分支就不會再走到。
+- 登入驗章時，liboqs-python 遇到太長的公鑰會丟出 `ValueError`（對齊時實測），`services.py` 的驗章區塊沒有接住，回應會是 500。Day 3 之後新註冊的憑證都已檢查過長度；Day 3 之前就存在 DB 的資料仍可能觸發。
+- （獨立審查，既有問題）`verify_registration_payload()` 有幾種格式錯誤會變成 500，不是 400：
+  - COSE_Key 不是 map 時，`credential_public_key.get` 會丟 `AttributeError`。
+  - clientDataJSON 或 CBOR 格式錯誤。
+  - alg 用浮點數 `-49.0` 時，仍會通過 `hosted_algorithms` 和長度表的檢查。
+  函式說明寫「任何一項不符都以 400 中止」，容易讓人以為已經涵蓋這些情況。
+- （獨立審查，既有問題）註冊時沒有檢查 flags 的 UP 位元（WebAuthn §7.1 要求 UP 為 1），也沒有比對 payload 的 `rawId` 和 authData 裡的 credentialId 是否相同。
 - 沿用 Day 1、Day 2 的待辦清單。
 
 ### 對齊紀錄
@@ -142,9 +149,95 @@ authData（WebAuthn §6.1）
     - 證明有用的方法是破壞檢查：暫時把**實作**裡的這個檢查拿掉，T3 必須變紅；之後改回原樣，並用 SHA-256 確認和破壞前相同。
     - 改壞的是實作，不是測試的設定。紅燈證明 T3 真的依賴這個檢查，不是不管怎樣都會過。
 - 測試案例 T1–T5：使用者已於 11/18 核准，並同意在 T4 追加 (d)「公鑰太長」。
+- 獨立審查後，使用者同意一併處理兩項輕微意見（11/18）：T2 加上「DB 剛好一筆」的計數斷言（加強，不是改弱），以及更正 `verify_registration_payload()` 說明的依據。
 
 ---
 
 ## 完工
 
-（待完成後填寫）
+### 實際修改
+
+行號以 Day 3 最後一個 commit 的版本為準。
+
+| commit | 檔案:行號 | 改了什麼 | 目的 |
+|---|---|---|---|
+| `2d7aae3` | `codex/worklog/day-03.md`、`codex/worklog/day-02.md:7` | 新增本文件的開工段落；day-02 狀態補記 PR #4 的 CI 已通過 | 在實作前留下測試案例與對齊紀錄 |
+| `9cb674b` | `rp_server/config.py:15–24` | 補上 `RPSettings` 的類別說明，逐一說明各欄位 | 依守則補齊修改到的類別的註解 |
+| `9cb674b` | `rp_server/config.py:36–45` | `hosted_algorithms` 預設值改為 `[-49, -48, -50, -54, -55]`，註解說明它同時決定宣告與接受、順序依 D6 | F03：RP 宣告並接受 FN-DSA |
+| `9cb674b` | `rp_server/tests/test_app.py:39–66` | T1 | 驗證 `/register/options` 的五個演算法與順序 |
+| `9cb674b` | `rp_server/tests/test_authentication_verify.py:164–165` | T7 的說明改為現況，指向 T2 | 拿掉「Day 3 才開放 FN-DSA」這句過時的說明 |
+| `dac1c32` | `rp_server/tests/test_registration_verify.py:1–209`（新增，`3cbd66c`、`afb5b9d` 擴充到 275 行） | 組 attestationObject 的輔助函式（`_cose_key` 第 54 行、`_attestation_object` 第 66 行、`_register` 第 89 行、`_credential_count` 第 122 行）、T2（第 129 行）、T3（第 193 行） | F04：FN-DSA 憑證經過 RP 真正的註冊檢查存進 DB，並能登入驗章 |
+| `3cbd66c` | `rp_server/services.py:19`、`26–33` | 匯入 `ALGORITHMS`；新增 `COSE_KTY_AKP` 與從共用表產生的 `COSE_TO_PUBLIC_KEY_BYTES` | 長度的唯一來源是共用表（D3） |
+| `3cbd66c` | `rp_server/services.py:97–171` | `verify_registration_payload()` 新增 kty 檢查（第 154–157 行）與公鑰長度檢查（第 159–166 行），並補齊整個函式的註解 | 格式錯誤的公鑰在註冊時就被擋下 |
+| `3cbd66c` | `rp_server/tests/test_registration_verify.py:1–10`、`215–275` | 模組說明補上 T4、T5；T4（第 225 行）、T5（第 253 行） | 驗證兩項新檢查 |
+| `4219bb9` | `codex/PROTOCOL-GUIDE.html:760`、`766`、`781`、`793`、`805`、`810`、`1377` | 預設宣告順序改為五個演算法；第 8 步加上 kty 與長度檢查；註冊案例的參數；Python 測試數改為 80；補上 Day 3 進度 | 導覽跟上程式 |
+| `afb5b9d` | `rp_server/tests/test_registration_verify.py:150–151` | T2 加上 `_credential_count(settings) == 1` | 依獨立審查，讓斷言貼近核准的「DB 新增一筆憑證」 |
+| `bf98f18` | `rp_server/services.py:104–108` | 函式說明更正依據：kty 與長度依 RFC 9964、RFC 9052 與共用表；註明無法解析的輸入目前會是 500 | 依獨立審查，只改註解 |
+| 完工紀錄 | `codex/REPORTS.md` | Decision Log 第 60 號 | 記錄今天的決定 |
+| 完工紀錄 | `codex/FN-DSA-PLAN.md:96–98` | 勾選 Day 3，註明驗章的部分在 Day 2 已完成 | 讓計畫和實際進度一致 |
+| 完工紀錄 | `codex/worklog/day-03.md` | 完工段落；開工段落的待辦清單更新 | 本段 |
+
+協議導覽沒有新增名詞：今天用到的 AKP、kty、COSE_Key 都已在第 11 章。
+
+### 測試結果（實作前 → 實作後）
+
+| 測試 | 實作前 | 實作後 |
+|---|---|---|
+| T1 | 紅燈：`AssertionError`，`pubKeyCredParams` 只有三筆 | 綠燈 |
+| T2 | ML-DSA 三個綠燈；FN-DSA-512、FN-DSA-1024 紅燈：註冊回 400 `{'message': 'Unsupported algorithm'}` | 綠燈（5 個） |
+| T3 | 綠燈（回歸保護；有效性由破壞檢查證明） | 綠燈 |
+| T4 (a)–(d) | 紅燈：4 個都是 `assert 200 == 400` | 綠燈 |
+| T5 (a)(b) | 紅燈：2 個都是 `assert 200 == 400` | 綠燈 |
+
+**T2 的紅燈是事後重現的。** 實作順序是先完成第一項（`9cb674b` 改 config，同時寫 T1），才寫 T2。T2 寫好時 config 已經包含 -54/-55，所以一寫好就是綠燈。為了確認「實作前預期」，把 `rp_server/config.py` 暫時換成開工 commit `2d7aae3` 的版本重跑：結果是 2 失敗、4 通過，失敗的正是 FN-DSA-512、FN-DSA-1024，錯誤訊息是 `Unsupported algorithm`，和開工段落的預期完全一致。跑完已換回，並用 SHA-256 確認相同。T1、T4、T5 都是先寫測試、確認紅燈後才實作。
+
+整體：Python 測試從 67 個增為 80 個，Extension 11 個、Frontend 4 個。7 個 commit（含依審查追加的 `afb5b9d`、`bf98f18`）前都跑過 8 項必跑檢查並全部通過。
+
+### 破壞檢查
+
+| 測試 | 怎麼改壞 | 結果 |
+|---|---|---|
+| T1 | `hosted_algorithms` 改回 `[-49, -48, -50]` | `test_app.py` 只有 T1 變紅（當時 T2 尚未寫；T2 的 FN-DSA 會跟著變紅，已在上面的紅燈重現中確認） |
+| T3 | 拿掉 `verify_registration_payload()` 中「alg 必須在 `hosted_algorithms`」的檢查 | `test_registration_verify.py` 只有 T3 變紅 |
+| T4 | 拿掉公鑰長度檢查 | `rp_server/tests` 只有 T4 (a)–(d) 變紅，共 4 個 |
+| T5 | 拿掉 kty 檢查 | `rp_server/tests` 只有 T5 (a)(b) 變紅，共 2 個 |
+
+每次檢查後都已改回正確的實作，並用 SHA-256 確認和破壞前完全相同。
+
+### 獨立審查
+
+由沒看過實作過程的子代理審查 `origin/main..4219bb9`，以開工段落核准的測試案例表為標準。
+
+**結論**：沒有必須修正的項目。T1–T5（含 T4 (d)）都忠實對應核准的案例，預期值都來自外部依據。
+
+- **紅燈重現**：
+  - 在 `2d7aae3` 放進 T1、T2、T3：3 失敗、8 通過。失敗的是 T1 與 T2 的兩個 FN-DSA，錯誤訊息是 `Unsupported algorithm`。
+  - 在 `dac1c32` 放進 T4、T5：6 失敗、6 通過，6 個都是 `assert 200 == 400`。
+  - 兩者都和開工段落的「實作前預期」一致。
+- **預期值查證**：審查者用規格的編碼公式獨立算出公鑰長度。
+  - Falcon：1 + 14n/8，n = 512 得 897，n = 1024 得 1793。
+  - ML-DSA：32 + 320k，k = 4、6、8 依序得 1312、1952、2592。
+  - 結果都和測試裡寫死的數值、共用表相同。
+- **liboqs 行為**：獨立重現了對齊紀錄問題 2 的說法：公鑰太長時丟出 `ValueError`，太短時 `verify()` 回 False。
+- **破壞檢查**：用 18 種方式改壞實作，15 種被抓到。沒抓到的 3 種：
+  - M11：長度表查不到時改成放行。預設設定走不到這個分支，已記入待辦清單。
+  - M12：把 alg 檢查移到 kty 和長度檢查之後。每個測試都只有一項錯誤，順序不影響結果，不算缺陷。
+  - M13：拿掉公鑰的 bytes 型別檢查。這是既有檢查，不在核准範圍。
+- **逐 commit 驗證**：5 個 commit 單獨取出，pytest（67 → 68 → 74 → 80 → 80）、ruff check、ruff format 都通過。
+  - 這個範圍沒有改到 `extension/`、`frontend/`，所以這兩個只在 HEAD 跑一次，也都通過。
+
+| 審查意見 | 分類 | 處理 |
+|---|---|---|
+| T2 沒有直接斷言「DB 新增一筆」，只用 `session.get` 查得到。DB 是全新的，查得到就表示有一筆，加上計數會更貼近核准的文字 | 輕微 | 使用者同意加強（不是改弱）。加上 `_credential_count(settings) == 1`，並做破壞檢查：讓 `store_credential()` 多存一筆，加強後的 T2 五個都變紅，加強前的 T2 仍然全綠。commit `afb5b9d` |
+| `verify_registration_payload()` 的說明寫「依 WebAuthn §7.1 依序檢查……kty 必須是 AKP、公鑰長度必須符合」，但 kty 與長度的依據是 RFC 9964、RFC 9052 與共用表，不是 §7.1（`services.py:104–106`） | 輕微 | 使用者同意，已更正（只改註解）。commit `bf98f18` |
+| 既有問題：COSE_Key 不是 map、clientDataJSON 或 CBOR 格式錯誤時回 500；alg 為浮點數 `-49.0` 時會通過檢查 | 建議 | 記入待辦清單 |
+| 既有問題：註冊時沒有檢查 UP 位元，也沒有比對 `rawId` 與 authData 的 credentialId | 建議 | 記入待辦清單 |
+| 完工段落把 T2 標在第 128 行（parametrize 裝飾器），其他測試標的都是 `def` 那一行 | 輕微 | 已更正為第 129 行 |
+
+審查者另外確認沒有問題的項目：
+- 核准的測試沒有被改弱：`dac1c32` 到 `3cbd66c` 之間，T2、T3 沒有被改動。
+- 長度表查不到時一律拒絕，這是安全的做法。
+- 修改到的函式與類別，註解都已補齊。
+- 開工段落與完工段落引用的行號都正確。
+- 協議導覽和程式一致。
+- 只改了「預計修改」列出的檔案，沒有動到使用者資料檔與第三方資料夾。
