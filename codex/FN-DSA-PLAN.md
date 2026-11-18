@@ -93,9 +93,9 @@
 **完成標準**：Python 兩端的 mapping 都改從共用表讀取，既有測試通過。結果：Python 測試由 32 個增為 67 個，全部通過。
 
 ### Day 3｜11/18：F03 + F04 RP Server
-- [ ] `hosted_algorithms` 加入 -54/-55（0.5h）
-- [ ] 註冊時允許 `credentialPublicKey[3]` 為 -54/-55，驗章時從共用表取得 liboqs 名稱（1h）
-- [ ] 測試：`/register/options` 包含 -54/-55；FN-DSA 憑證可存入 DB 並驗章成功（1.5h）
+- [x] `hosted_algorithms` 加入 -54/-55（0.5h）
+- [x] 註冊時允許 `credentialPublicKey[3]` 為 -54/-55，驗章時從共用表取得 liboqs 名稱（1h）（驗章的部分在 Day 2 已完成；Day 3 另外加上 kty 與公鑰長度檢查）
+- [x] 測試：`/register/options` 包含 -54/-55；FN-DSA 憑證可存入 DB 並驗章成功（1.5h）
 
 **完成標準**：RP 能宣告、接受並驗證 FN-DSA。
 
