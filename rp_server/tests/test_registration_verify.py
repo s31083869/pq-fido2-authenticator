@@ -5,7 +5,8 @@
 
 這裡不使用 authenticator 的程式：RP 和 authenticator 在協議中是不同角色（D3／Decision Log 第 57 號），
 所以依 WebAuthn §6.1、§6.5 自己組出 attestationObject，公鑰則用真的 liboqs 產生。
-T2 對共用演算法表的每個演算法跑「註冊 → 存進 DB → 登入驗章」；T3 確認 RP 不接受沒宣告的演算法。
+T2 對共用演算法表的每個演算法跑「註冊 → 存進 DB → 登入驗章」；T3 確認 RP 不接受沒宣告的演算法；
+T4、T5 確認公鑰長度不符、kty 不是 AKP 的憑證在註冊時就被擋下。
 """
 
 from __future__ import annotations
@@ -206,4 +207,67 @@ def test_rejects_registration_with_algorithm_rp_did_not_offer(tmp_path: Path) ->
 
     assert response.status_code == 400
     assert response.get_json()["message"] == "Unsupported algorithm"
+    assert _credential_count(settings) == 0
+
+
+@pytest.mark.parametrize(
+    ("alg", "length"),
+    [
+        (-54, 896),  # (a) FN-DSA-512 應為 897 bytes，少 1 byte
+        (-55, 897),  # (b) FN-DSA-1024 應為 1793 bytes，卻給 FN-DSA-512 的長度
+        (-49, 1312),  # (c) ML-DSA-65 應為 1952 bytes，卻給 ML-DSA-44 的長度
+        (-54, 1793),  # (d) FN-DSA-512 卻給 FN-DSA-1024 的長度（太長）
+    ],
+    ids=["a-fn512-short", "b-fn1024-as-fn512", "c-mldsa65-as-mldsa44", "d-fn512-long"],
+)
+def test_rejects_registration_with_wrong_public_key_length(
+    tmp_path: Path, alg: int, length: int
+) -> None:
+    """T4：公鑰長度和演算法不符時，註冊回 400 Invalid public key，DB 不新增憑證。
+
+    依據：Falcon v1.2 第 3.11 節（FN-DSA-512 公鑰 897 bytes、FN-DSA-1024 為 1793 bytes）、
+    FIPS 204 Table 2（ML-DSA-65 公鑰 1952 bytes）；這三個演算法的公鑰長度都是固定的。
+    不在註冊時擋下，長度錯的公鑰會存進 DB，登入時才失敗：太短時驗章回 False（400 Invalid signature），
+    太長時 liboqs-python 丟出 ValueError，登入變成 500（(d) 是對齊時為此追加的情境）。
+    長度是寫死的外部數值，不從共用表推算，避免「拿實作驗證實作」。公鑰內容不重要，只看長度。
+    """
+    settings = RPSettings(database_url=f"sqlite:///{tmp_path / 'rp.db'}")
+    client = create_app(settings).test_client()
+
+    response = _register(
+        client, _cose_key(alg, bytes([0x01]) * length), secrets.token_bytes(32)
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["message"] == "Invalid public key"
+    assert _credential_count(settings) == 0
+
+
+@pytest.mark.parametrize(
+    "kty",
+    [KTY_EC2, None],
+    ids=["a-kty-ec2", "b-kty-missing"],
+)
+def test_rejects_registration_with_non_akp_key_type(
+    tmp_path: Path, kty: int | None
+) -> None:
+    """T5：COSE_Key 的 kty 不是 7（AKP）時，註冊回 400 Invalid public key，DB 不新增憑證。
+
+    情境：(a) kty 為 2（EC2，橢圓曲線）；(b) 完全沒有 kty 欄位。
+    其他欄位都正確：alg 為 -54，公鑰是長度正確（897 bytes）的真 Falcon-512 公鑰，
+    確保被拒絕的原因只有 kty。
+    依據：RFC 9964 規定 ML-DSA 的 COSE_Key 使用 AKP（kty = 7），draft-ietf-cose-falcon-04 的 FN-DSA
+    沿用 AKP；RFC 9052 §7 規定 kty 是 COSE_Key 必填的欄位。
+    """
+    settings = RPSettings(database_url=f"sqlite:///{tmp_path / 'rp.db'}")
+    client = create_app(settings).test_client()
+    with oqs.Signature("Falcon-512") as signer:
+        public_key = signer.generate_keypair()
+
+    response = _register(
+        client, _cose_key(-54, public_key, kty=kty), secrets.token_bytes(32)
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["message"] == "Invalid public key"
     assert _credential_count(settings) == 0
