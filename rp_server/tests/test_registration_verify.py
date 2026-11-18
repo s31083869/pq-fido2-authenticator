@@ -147,6 +147,8 @@ def test_registers_and_authenticates_real_credential_for_every_registry_algorith
             client, _cose_key(algorithm.cose_alg, public_key), credential_id
         )
         assert response.status_code == 200, response.get_json()
+        # 核准的預期是「DB 新增一筆憑證」：DB 是全新的，一次註冊後必須剛好一筆，不能多存
+        assert _credential_count(settings) == 1
         with Database(settings).session() as session:
             stored = session.get(Credential, _b64url(credential_id))
             assert stored is not None
