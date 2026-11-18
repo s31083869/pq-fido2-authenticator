@@ -107,9 +107,11 @@ class Authenticator:
     def make_credential(self, options_data: Dict, origin: Optional[str] = None) -> Dict:
         """處理註冊（navigator.credentials.create）：產生新的金鑰對，回傳 attestation 結果。
 
-        流程：確認 rpId 與 origin 一致 → 使用者驗證 → 檢查 excludeCredentials →
-        依 pubKeyCredParams 的順序選演算法 → 產生並保存金鑰對 →
+        流程：確認 rpId 與 origin 一致 → 依 pubKeyCredParams 的順序選演算法 → 使用者驗證 →
+        檢查 excludeCredentials → 產生並保存金鑰對 →
         組出 clientDataJSON、authenticatorData、attestationObject。
+        順序依 WebAuthn §6.3.2：演算法不支援時在使用者驗證之前就拒絕，不打擾使用者；
+        excludeCredentials 則必須在使用者同意之後才回錯誤，避免網站在使用者不知情時探測裝置上的憑證。
 
         參數：
             options_data：RP 的註冊參數（PublicKeyCredentialCreationOptions），
@@ -134,9 +136,13 @@ class Authenticator:
             user_handle=options.user.id,
             origin=resolved_origin,
         )
+        # 依 RP 偏好的順序，選第一個本 authenticator 支援的後量子演算法（WebAuthn §6.3.2 第 2 步）。
+        # 都不支援時拋出 ValueError；這一步排在使用者驗證之前，使用者不會白白看到 Windows Hello
+        alg = self._select_algorithm(options.pubKeyCredParams)
         # 使用者驗證（Windows Hello／Touch ID），失敗會丟出 UserVerificationError 中止註冊
         self._verify_user(f"Verify to register {options.user.displayName}")
-        # excludeCredentials 中若有本站已存在的憑證，代表重複註冊，必須拒絕
+        # excludeCredentials 中若有本站已存在的憑證，代表重複註冊，必須拒絕。
+        # 這一步刻意留在使用者驗證之後（WebAuthn §6.3.2 第 3 步要求先取得使用者同意才回錯誤）
         try:
             self._enforce_exclude_list(options.rp.id, options.excludeCredentials)
         except CredentialStoreError:
@@ -149,8 +155,7 @@ class Authenticator:
                 level=logging.WARNING,
             )
             raise
-        # 依 RP 偏好的順序，選第一個本 authenticator 支援的後量子演算法，並用 liboqs 產生金鑰對
-        alg = self._select_algorithm(options.pubKeyCredParams)
+        # 用前面選定的演算法，以 liboqs 產生金鑰對
         suite = PQCSignatureSuite(alg)
         keypair = suite.generate_keypair()
         # 建立憑證紀錄（含 32 bytes 隨機 credential ID），私鑰交給儲存層加密保存

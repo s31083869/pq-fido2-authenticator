@@ -116,3 +116,58 @@ def test_rejects_when_no_offered_algorithm_is_supported(authenticator) -> None:
 
     # 儲存層中沒有任何憑證：被拒絕的註冊不能留下資料
     assert authenticator.store.list_all() == []
+
+
+class RecordingVerifier:
+    """記錄使用者驗證被呼叫幾次的假 verifier，和 NoopVerifier 一樣一律通過、不跳出 Windows Hello。
+
+    用途：T5 要確認「不支援的演算法在使用者驗證之前就被拒絕」，只看結果拋不拋錯分辨不出順序，
+    所以記下 verify_user() 的呼叫次數。
+    """
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def verify_user(self, prompt: str | None = None) -> bool:
+        self.calls += 1
+        return True
+
+
+@pytest.mark.parametrize(
+    ("algs", "expected_calls", "should_succeed"),
+    [
+        ([-7], 0, False),  # (a) 不支援：在使用者驗證之前就拒絕，一次都不呼叫
+        (
+            [-54],
+            1,
+            True,
+        ),  # (b) 支援：註冊成功，使用者驗證剛好一次（調整順序後沒有弄丟）
+    ],
+    ids=["a-unsupported-rejected-before-uv", "b-supported-uv-once"],
+)
+def test_checks_algorithm_before_user_verification(
+    monkeypatch,
+    temp_settings,
+    algs: list[int],
+    expected_calls: int,
+    should_succeed: bool,
+) -> None:
+    """T5：註冊時先檢查演算法，再做使用者驗證（Windows Hello）。
+
+    依據：WebAuthn §6.3.2 authenticatorMakeCredential：第 2 步檢查 pubKeyCredParams 中至少有一個
+    支援的演算法、沒有就回 NotSupportedError，排在第 6 步取得使用者同意之前；
+    演算法不支援時不應打擾使用者。(b) 確保調整順序後，支援的情況仍會做一次使用者驗證。
+    """
+    from authenticator import service
+
+    monkeypatch.setattr(service, "PQCSignatureSuite", FakeSignatureSuite)
+    verifier = RecordingVerifier()
+    authenticator = Authenticator(settings=temp_settings, user_verifier=verifier)
+
+    if should_succeed:
+        authenticator.make_credential(_creation_options(algs), origin=ORIGIN)
+    else:
+        with pytest.raises(ValueError, match="No supported algorithm"):
+            authenticator.make_credential(_creation_options(algs), origin=ORIGIN)
+
+    assert verifier.calls == expected_calls
