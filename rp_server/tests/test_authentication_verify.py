@@ -161,8 +161,8 @@ def test_verify_accepts_real_signature_for_every_registry_algorithm(
 
     依據：CLAUDE.md「真實密碼學」（產生金鑰 → 簽章 → RP 驗章）；WebAuthn §7.2，
     RP 依註冊時保存的演算法編號選出驗章演算法，對 authenticatorData ‖ SHA-256(clientDataJSON) 驗章。
-    憑證直接寫進 DB：RP 註冊目前仍只接受 hosted_algorithms 的 ML-DSA（Day 3 才開放 FN-DSA），
-    這裡只測登入驗章。
+    憑證直接寫進 DB，跳過註冊檢查，這裡只測登入驗章；經過 /register/verify 註冊再登入的完整路徑
+    由 Day 3 的 T2（test_registration_verify.py）負責。
     """
     settings = RPSettings(database_url=f"sqlite:///{tmp_path / 'rp.db'}")
     client = create_app(settings).test_client()
