@@ -6,7 +6,7 @@
 | 分支 | 每天一個分支（`day-01`、`day-02`…），Claude 開 PR，由使用者在 GitHub 合併；Day 0 使用 `feature/fn-dsa-integration` |
 | 依據 | [workflow.md](../workflow.md)、[FALCON_INTEGRATION_HANDOVER.md](docs/FALCON_INTEGRATION_HANDOVER.md)、[CLAUDE.md](../CLAUDE.md)（協作守則） |
 | 工作量 | 每天約 3 小時，共 12 天（Day 1–Day 12） |
-| 日期調整 | 11/16 起整體順延 2 天：Day 1 = 11/16，Day 12 = 11/27 |
+| 日期調整 | 11/16 起整體順延 2 天：Day 1 = 11/16，Day 12 = 11/27。11/19–11/22 沒有進行，Day 5 起再順延 3 天：Day 5 = 11/23，Day 12 = 11/30（下方各 Day 標題保留原訂日期） |
 | 狀態 | 已確認（第 3 節的設計決策 D1–D6 已於 2026-11-13 確認） |
 
 ---
