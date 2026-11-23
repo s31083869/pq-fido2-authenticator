@@ -80,8 +80,8 @@
 
 ```bash
 uv run pytest
-uv run ruff check authenticator rp_server shared
-uv run ruff format --check authenticator rp_server shared
+uv run ruff check authenticator rp_server shared tests
+uv run ruff format --check authenticator rp_server shared tests
 cd extension && bun test src && bun run typecheck
 cd frontend && bun test src && bun run lint && bunx tsc --noEmit
 ```
