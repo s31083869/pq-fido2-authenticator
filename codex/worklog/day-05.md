@@ -4,7 +4,7 @@
 |---|---|
 | 日期 | 2026-11-23（計畫原訂 11/20；11/19–11/22 沒有進行，計畫日期整體順延 3 天） |
 | 分支 | `day-05`（從 `origin/main` d660315 開出） |
-| 狀態 | 開工：對齊完成、測試案例已核准，實作中 |
+| 狀態 | 完工：T1–T6、手動端到端 M1–M3 與依獨立審查的修正都已完成，待 PR 的 CI 結果 |
 
 ---
 
@@ -160,6 +160,11 @@ M1–M3 會在 `rp_server/data/rp.db` 新增兩個使用者，這是你自己執
 ### 待辦清單（中途發現、今天不處理）
 
 - 前端註冊完成後沒有顯示 authenticator **實際選到**的演算法。authenticator 不支援選單上選的演算法時，會依 WebAuthn §6.3.2 改選清單中下一個支援的，使用者看不出來（例如目前的 Extension 不支援 Falcon）。可以改成讀出回應的 `publicKeyAlgorithm`，顯示在畫面與 log，選單文字改為「優先演算法」。使用者決定先記入待辦（11/23）。
+- （獨立審查）沒有任何測試能發現 `frontend/src/pages/index.tsx` 是否真的呼叫 `orderPubKeyCredParams()`：把頁面改回「硬塞」或直接送 RP 原本的清單，前端測試、tsc、lint 都通過。T6 在頁面上的行為（顯示錯誤、不跳出 Windows Hello）也沒有驗證。Day 12 回歸測試的手動清單加一步：RP 的 `hosted_algorithms` 不含 FN-DSA 時，選 FN-DSA 應直接看到錯誤、不跳出 Windows Hello。
+- （獨立審查）RP 的 origin 檢查沒有回歸測試：拿掉註冊（`rp_server/services.py:127`）或登入（`:210`）的 origin 檢查，全部 103 個 Python 測試仍通過。Day 5 之前就有的缺口，Day 10「測試補強」處理。
+- （獨立審查）`import rp_server.app` 時，模組最後一行的 `app = create_app()` 會以預設設定開啟 `rp_server/data/rp.db` 並建立資料表（只建表、不寫資料列），所以在主 checkout 跑 pytest 會碰到使用者的資料檔。`rp_server/tests` 原本就這樣。Day 10 一併處理（例如改成延遲建立 app）。
+- （獨立審查）`orderPubKeyCredParams()` 的「不修改傳入的 rpParams」沒有測試：改成就地排序後 6 個前端測試都通過。Day 10 處理。
+- （獨立審查）整合測試直接把 RP 的 user handle 交給 authenticator；真的路線上前端與 bridge 會轉成 base64url(UTF-8(handle))（28 字元）。RP 目前不檢查 userHandle，所以不影響結果。是否在整合測試模擬這個轉換，Day 10 決定。
 - 沿用 Day 1–4 的待辦清單。
 
 ### 對齊紀錄
@@ -207,3 +212,99 @@ M1–M3 會在 `rp_server/data/rp.db` 新增兩個使用者，這是你自己執
     - 這樣設計是為了相容各種 authenticator、一次完成協商、方便更換演算法。
     - WebAuthn 沒有「使用者選演算法」。本專案前端的選單是 demo 工具，真正的意思是「優先嘗試」。
     - 使用者感覺到的落差，是 demo 介面沒有顯示實際選到的演算法，不是協議的缺陷。要強制只用 FN-DSA，就把 RP 的 `hosted_algorithms` 設成只有 `[-54, -55]`。
+
+---
+
+## 完工
+
+### 實際修改
+
+行號以 Day 5 最後一個 commit 的版本為準。
+
+| commit | 檔案:行號 | 改了什麼 | 目的 |
+|---|---|---|---|
+| `a447e29` | `codex/worklog/day-05.md`、`codex/worklog/day-04.md:7`、`codex/FN-DSA-PLAN.md:9` | 開工段落；day-04 狀態補記 PR #6 的 CI 已通過；計畫日期順延 3 天 | 在實作前留下測試案例與對齊紀錄 |
+| `59ce57c` | `tests/integration/conftest.py:1–93`（新增，`90f27a6` 修正註解後為 93 行） | 記憶體版 keyring（第 36 行）、真的 authenticator（第 65 行）、可指定 `hosted_algorithms` 的 RP 工廠（第 78 行） | 整合測試的環境：註冊與登入的資料只寫進暫存資料夾，不跳 Windows Hello |
+| `59ce57c` | `tests/integration/test_python_route.py:1–204`（新增，`90f27a6` 補註解後為 204 行） | 外部數值表 `ALL_ALGORITHMS`（第 37 行）、模擬前端重排的 `_move_to_front()`（第 58 行）、完整註冊 `_register()`（第 69 行）、T1（第 108 行）、T2（第 135 行）、T3（第 168 行） | F14、F15、F16、F17：authenticator 的真實輸出交給 RP 驗證 |
+| `59ce57c` | `pyproject.toml:32–33`、`.github/workflows/ci.yml:50、53`、`CLAUDE.md:83–84` | `testpaths` 加入 `tests/integration`；CI 與必跑清單的 ruff 路徑加入 `tests` | 守則要求新增 `tests/` 時同步；改 `CLAUDE.md` 已取得使用者同意 |
+| `59ce57c` | `codex/worklog/day-05.md` | 對齊紀錄補記實作期間的追問；待辦清單 | 文件 |
+| `4fb365c` | `frontend/src/lib/algorithms.ts:1–52`（新增） | `PubKeyCredParam` 型別（第 10 行）、`ALGORITHM_OPTIONS`（第 19 行）、`orderPubKeyCredParams()`（第 40 行） | 前端只在 RP 的清單內重排；RP 沒宣告時拋出錯誤 |
+| `4fb365c` | `frontend/src/lib/algorithms.test.ts:1–60`（新增，`90f27a6` 加嚴 T6 後為 60 行） | T4（第 25 行）、T5（第 36 行）、T6（第 55 行） | 選單與共用表一致；重排規則 |
+| `4fb365c` | `frontend/src/pages/index.tsx:15、86、131、179–261、355、398、407` | 改用新模組（import 第 15 行、型別第 86 行是連動修改），移除「硬塞到最前面」的寫法；選單預設 ML-DSA-65；`handleRegister` 補齊註解；說明文字與選單標籤改為不限 ML-DSA | 修正 Day 5 的排序 bug，選單加入 FN-DSA |
+| `2a89d7d` | `codex/PROTOCOL-GUIDE.html` | 第 4 章註冊第 3 步與範例情景、程式碼地圖、第 7 章狀態、第 10 章進度與測試數、第 11 章新增 4 個名詞（hosted_algorithms、演算法協商、整合測試、端到端測試） | 導覽跟上程式 |
+| `90f27a6` | `frontend/src/lib/algorithms.test.ts:51–59`、`tests/integration/conftest.py:1–13、37–44`、`tests/integration/test_python_route.py:8–17、82–83、92–96、143–145、173–175`、`frontend/src/pages/index.tsx:129–131、201–204` | 依獨立審查：T6 加嚴為檢查「does not offer FN-DSA-512」；修正 rp.db、keyring、user.id 轉換的說法；寫明 tuple 欄位、T2 的 signCount 依據、T3 對 F16 的解讀；選單預設值改由 `ALGORITHM_OPTIONS` 取得 | 註解與程式一致；T6 符合核准的預期 |
+| 完工紀錄 | `codex/REPORTS.md` | Decision Log 第 62 號 | 記錄今天的決定 |
+| 完工紀錄 | `codex/FN-DSA-PLAN.md:109–114` | 勾選 Day 5，補上結果 | 讓計畫和實際進度一致 |
+| 完工紀錄 | `codex/worklog/day-05.md` | 完工段落 | 本段 |
+
+### 測試結果（實作前 → 實作後）
+
+| 測試 | 實作前 | 實作後 |
+|---|---|---|
+| T1、T2 | 綠燈（10 個；兩端 Day 2–4 都已完成，第一次接起來跑就通過，沒有發現介面不一致） | 綠燈 |
+| T3 | 綠燈（回歸保護） | 綠燈（另加上錯誤訊息檢查，見破壞檢查） |
+| T4–T6 | 紅燈：`Cannot find module './algorithms'`（模組還不存在；1 fail、1 error） | 綠燈（6 個） |
+
+T1–T3 的綠燈和開工段落的「實作前預期」一致，有效性由破壞檢查證明。T4–T6 是先寫測試、確認紅燈後才實作。
+
+整體：Python 測試從 92 個增為 103 個，Extension 11 個，前端從 4 個增為 10 個。每個 commit 前都跑過必跑清單並全部通過。
+
+### 破壞檢查
+
+| 測試 | 怎麼改壞 | 結果 |
+|---|---|---|
+| T1、T2 | 整合測試的 origin 改成 `http://localhost:3001` | T1、T2 共 10 個變紅；T3 原本仍是綠燈（見下一列） |
+| T3 | 同上 | 原本 T3 只檢查 400，origin 錯誤也會回 400，所以沒被抓到。T3 加上「錯誤訊息必須是 `Unsupported algorithm`」後，同樣的破壞會讓 T3 變紅。這是加強，沒有放寬已核准的預期值 |
+| T2 | RP 驗章前把簽章最後一個 byte 翻轉（`rp_server/services.py:223`） | T2 的 5 個變紅，T1、T3 不受影響 |
+| T3 | 拿掉 RP 的 `hosted_algorithms` 檢查 | 只有 T3 變紅 |
+| T4 | `ALGORITHM_OPTIONS` 拿掉 FN-DSA-1024 | 只有 T4 變紅 |
+| T4 | `ALGORITHM_OPTIONS` 的 -54 改成 -53 | T4 變紅；T6 也變紅（錯誤訊息找不到 FN-DSA-512 這個名稱） |
+| T6 | `orderPubKeyCredParams()` 改回舊的「硬塞到最前面」 | 只有 T6 變紅 |
+| T5 | `orderPubKeyCredParams()` 改成「選到的移到最後」 | T5 的 4 個變紅 |
+| T6（加嚴後） | 錯誤訊息改成只有演算法名稱（`Unknown FN-DSA-512`） | 只有 T6 變紅；加嚴前的 T6 抓不到這種破壞 |
+
+每次檢查後都已改回正確的實作，並用 SHA-256 確認和破壞前完全相同。
+
+### 手動端到端（使用者親手執行，真的 Windows Hello，11/23）
+
+| 編號 | 結果 |
+|---|---|
+| M1 | 成功。選 FN-DSA-512 註冊並登入；使用者名稱實際用的是 `ccc`（不是清單上的 `fn512`，不影響結果） |
+| M2 | 成功。選 FN-DSA-1024，使用者名稱 `fn1024` |
+| M3 | Claude 以只讀模式查詢 `rp_server/data/rp.db` 的 FN-DSA 憑證：`[('ccc', -54, 1), ('fn1024', -55, 1)]`，algorithm 與 sign_count 都符合預期 |
+
+F17 前半（Python bridge 路線的 FN-DSA 端到端）完成。
+
+### 獨立審查
+
+由沒看過實作過程的子代理，在獨立的 worktree 審查 `origin/main..2a89d7d`，以開工段落核准的測試案例表為標準。
+
+**結論**：程式與測試沒有需要擋下的問題。T1–T6 都忠實對應核准的案例，預期值都有外部依據；核准的測試案例表在 `a447e29` 之後沒有被改過。
+
+- **紅燈重現**：在 `a447e29` 加入 `algorithms.test.ts`，出現 `Cannot find module './algorithms'`；加入 `tests/integration/` 則是 11 passed，和開工段落的預期一致。
+- **預期值查證**：ML-DSA 公鑰用 32 + 320·k（k = 4、6、8）算出 1312、1952、2592；FN-DSA 用 1 + 14n/8 算出 897、1793；T5 四組順序手推正確；WebAuthn 條號與 workflow.md 引用正確。
+- **T3 的訊息檢查**：審查者確認是加強。拿掉這一行再把 origin 改錯，T3 仍會通過。
+- **破壞檢查**：審查者另外用 35 種方式改壞前端、RP、authenticator、共用表與測試端。沒被任何測試抓到的有：前端就地修改 rpParams（F8）、`index.tsx` 不呼叫新函式（F14、F15）、拿掉 RP 的 origin 檢查（R2、R3），都已記入待辦清單。
+- **逐 commit 驗證**：4 個 commit 單獨取出，必跑清單都通過（pytest 92 → 103 → 103 → 103；前端 4 → 4 → 10 → 10）。
+- **環境**：審查者沒有安裝或升級任何套件；liboqs 從 `C:\Users\user\_oqs` 載入，沒有觸發下載；沒有修改主 checkout。
+
+| # | 審查意見 | 分類 | 處理 |
+|---|---|---|---|
+| 1 | 導覽寫了端到端已完成，但紀錄裡沒有 M1–M3 的結果 | 必須修正 | 審查時完工段落還沒 commit；本段已記錄 M1–M3，隨完工紀錄 commit |
+| 2 | 缺紅燈結果與破壞檢查的紀錄 | 必須修正 | 同上，見本段「測試結果」「破壞檢查」 |
+| 3 | T6 只檢查訊息含「FN-DSA-512」，比核准的「指出 RP 沒有宣告」寬鬆 | 建議 | 使用者同意，改為 `/does not offer FN-DSA-512/`，並做破壞檢查。commit `90f27a6` |
+| 4 | 頁面接線沒有任何驗證 | 建議 | 記入待辦清單，Day 12 手動清單加一步 |
+| 5 | 整合測試說「和 bridge 傳的內容相同」，但沒有重現 user.id 的轉換 | 建議 | 使用者同意，測試說明改為照實描述差異（`90f27a6`）；是否模擬記入待辦。開工段落架構背景第 4 節的「和 bridge 的 `_handle_make()` 傳給 authenticator 的內容相同」同樣不精確，開工紀錄保留原文，以本段為準 |
+| 6 | RP 的 origin 檢查沒有回歸測試 | 建議（既有缺口） | 記入待辦清單，Day 10 |
+| 7 | 「不使用 rp_server/data/rp.db」說法不精確，import 時會開啟並建表 | 建議（既有行為） | 使用者同意，conftest 註解改為照實描述（`90f27a6`）；行為本身記入待辦，Day 10 |
+| 8 | 「不修改 rpParams」沒有測試 | 建議 | 記入待辦清單，Day 10 |
+| 9 | 「私鑰改存記憶體版 keyring」在 Windows 上不成立 | 輕微 | 使用者同意，改為 Windows 上存 DPAPI 檔（暫存資料夾）、CI 上才用記憶體版 keyring（`90f27a6`）。Claude 已核對 `authenticator/storage.py` 的 `_resolve_backend()` |
+| 10 | `index.tsx` 註解說 user.id 是 base64url | 輕微 | 使用者同意，已改正（`90f27a6`） |
+| 11 | 選單預設值寫死 -49 | 輕微 | 使用者同意，改由 `ALGORITHM_OPTIONS` 取得（`90f27a6`） |
+| 12 | `_credentials_of` 沒寫回傳欄位順序 | 輕微 | 使用者同意，docstring 已寫明（`90f27a6`） |
+| 13 | 對齊紀錄說 challenge、origin 等「密碼學與格式規則就能判斷」，但 attestation 為 none 時，註冊階段這些欄位沒有密碼學保護，腳本可以任意填入 | 輕微 | 對齊紀錄保留原文，在此更正：註冊時的「真偽檢查」只確認資料符合 RP 這次的 challenge、本站 origin 與 rpId，沒有簽章保護；這也是政策檢查（`hosted_algorithms`）必須由 RP 自己做的原因之一 |
+| 14 | T2 的「剛好是 1」不是規格要求 | 輕微 | 使用者同意，T2 docstring 註明來自本專案設計（`90f27a6`） |
+| 15 | T3 引用 F16 容易誤讀 | 輕微 | 使用者同意，T3 docstring 寫明本專案對 F16 的解讀（`90f27a6`） |
+| 16 | 計畫未勾選；`index.tsx` 有開工文件沒列的連動修改 | 提醒 | 計畫已勾選；連動修改已列在「實際修改」 |
+
+審查者另外確認沒有問題的項目：註解符合守則（`handleRegister` 已補齊）；範圍沒有超出「預計修改」，沒有碰到禁止的資料夾與使用者資料檔，沒有新增依賴；協議導覽與程式一致；開工段落的行號在 `a447e29` 都正確；M1–M3 的指令可用。
