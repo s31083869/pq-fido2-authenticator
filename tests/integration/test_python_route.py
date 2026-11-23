@@ -5,10 +5,15 @@ Python 路線實際執行時，資料經過「RP → 前端 → bridge → authe
 - RP：create_app() 的 Flask test client，走真的 /register/*、/authenticate/* 路由與 DB；
 - authenticator：真的 Authenticator 與 liboqs（CLAUDE.md「真實密碼學」）。
 
-「前端 + bridge」在這裡只做兩件事，和真的程式相同：
+「前端 + bridge」在這裡只做兩件事：
 1. 重排 pubKeyCredParams：目標演算法移到第一個，其他保持原順序（修正後的前端規則，前端本身由 Day 5 T5 測）；
 2. 把 RP 的回應交給 make_credential()／get_assertion()，origin 固定 http://localhost:3000
    （bridge 從頁面真實網址取得的值，見 authenticator/bridge.py 的 _handle_make()），再把結果原樣送回 RP。
+
+和真的路線不同的地方：user.id（RP 的 user handle，21 個英數字）在真的路線上會先被前端的
+binaryStringToBuffer() 當成 UTF-8 轉成 bytes，再由 bridge 轉成 base64url，所以 authenticator 收到的是
+base64url(UTF-8(handle))；這裡直接傳原值。RP 目前不檢查登入回應的 userHandle，所以不影響 T1–T3 的結果；
+是否在這裡模擬這個轉換，記在 Day 5 待辦清單。
 bridge 注入腳本與前端的 JavaScript 不在這裡的範圍，由手動端到端 M1–M3 覆蓋。
 
 預期的公鑰長度都寫死為外部數值，不從共用表推算，避免「拿實作驗證實作」。
@@ -75,6 +80,7 @@ def _register(client, authenticator, username: str, alg: int):
     # 前端的工作：只在 RP 的清單裡調整順序，讓 authenticator 選到這次要測的演算法
     options["pubKeyCredParams"] = _move_to_front(options["pubKeyCredParams"], alg)
     # bridge 的工作：把參數交給 authenticator，origin 取自頁面的真實網址
+    # （user.id 直接傳 RP 的原值，和真的路線的差異見模組說明）
     credential = authenticator.make_credential(options, origin=ORIGIN)
     verify_response = client.post(
         "/register/verify", json={"username": username, "credential": credential}
@@ -83,7 +89,11 @@ def _register(client, authenticator, username: str, alg: int):
 
 
 def _credentials_of(settings, username: str) -> list:
-    """直接查 RP 的 DB，回傳該使用者的所有憑證；使用者不存在時回傳空 list。"""
+    """直接查 RP 的 DB，回傳該使用者的所有憑證；使用者不存在時回傳空 list。
+
+    輸出：每張憑證一個 tuple，欄位依序為 (credential ID, algorithm, public_key, sign_count)，
+    對應 rp_server/models.py 的 Credential 欄位；測試用 [0][3] 取第一張憑證的 sign_count。
+    """
     with Database(settings).session() as session:
         user = get_user(session, username)
         if user is None:
@@ -130,6 +140,8 @@ def test_login_after_registration_is_verified_by_rp(
     每個測試各自註冊，彼此不共用狀態。
 
     依據：workflow.md F15、F17；WebAuthn §7.2（RP 登入驗證與驗章）、§6.1.1（signCount 每次使用遞增）。
+    §6.1.1 只要求遞增；「剛好是 1」來自本專案 authenticator 每次登入加 1 的設計（Day 4 T2 也檢查
+    authenticatorData 的 signCount 為 1），RP 把收到的值寫回 DB。
     """
     client, settings = make_rp()
     username = f"user{abs(alg)}"
@@ -157,6 +169,10 @@ def test_rp_rejects_fn_dsa_inserted_by_buggy_frontend(make_rp, authenticator) ->
     """T3：RP 沒宣告 FN-DSA，舊前端卻把 -54 塞到清單最前面；authenticator 照清單選 -54，RP 回 400 且不存任何憑證。
 
     authenticator 只看得到收到的清單，所以選 -54 不算錯；保證要靠 RP 用自己的 hosted_algorithms 再檢查一次。
+
+    關於 F16（「RP 未宣告 -54/-55 時，authenticator 不可選 FN-DSA」）：本專案的解讀是「RP 發出的清單
+    沒有 FN-DSA 時，FN-DSA 不能被註冊成功」。authenticator 這一端由 Day 4 T3 (d)(e)、T4 保證只從收到的
+    清單裡選；收到的清單被前端改過時，authenticator 無從得知，由 RP 擋下，也就是這個測試。
 
     依據：workflow.md F16；WebAuthn §7.1（alg 必須是 RP 在 pubKeyCredParams 宣告過的）；
     Day 4 對齊紀錄「保證要靠兩端」、Day 5 對齊紀錄（前端的檢查可被繞過，RP 的檢查才是規則本身）。

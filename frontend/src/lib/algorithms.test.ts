@@ -50,8 +50,11 @@ describe("orderPubKeyCredParams", () => {
 
   // T6：選到的演算法 RP 沒宣告 → 拋出錯誤、不回傳任何清單，前端因此不會呼叫
   // navigator.credentials.create，也不會跳出 Windows Hello（Day 5「待你決定」第 1 點採 A）。
+  // 錯誤訊息必須同時指出「RP 沒有宣告」與演算法名稱，只含名稱的其他錯誤不算（依獨立審查加嚴）。
   // 依據 workflow.md F16；WebAuthn §5.4（前端不能替 RP 增加演算法）。
   test("throws when the RP does not offer the preferred algorithm", () => {
-    expect(() => orderPubKeyCredParams(params([-49, -48, -50]), -54)).toThrow("FN-DSA-512");
+    expect(() => orderPubKeyCredParams(params([-49, -48, -50]), -54)).toThrow(
+      /does not offer FN-DSA-512/,
+    );
   });
 });

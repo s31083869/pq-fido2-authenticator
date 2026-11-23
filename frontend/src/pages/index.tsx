@@ -126,8 +126,9 @@ export default function HomePage() {
   const [currentRpId, setCurrentRpId] = useState("");
   const [credentialBadgeMode, setCredentialBadgeMode] = useState<"register" | "authenticate" | "manual">("manual");
   const [activeTab, setActiveTab] = useState("register");
-  // 選單預設 ML-DSA-65（-49），也就是 RP 預設清單的第一個，所以不改選單時順序和 RP 相同
-  const [algorithm, setAlgorithm] = useState<number>(-49);
+  // 選單預設 ALGORITHM_OPTIONS 的第 2 筆 ML-DSA-65（-49），也就是 RP 預設清單的第一個，
+  // 所以不改選單時送出的順序和 RP 相同
+  const [algorithm, setAlgorithm] = useState<number>(ALGORITHM_OPTIONS[1].value);
   const [isRegistering, startRegister] = useTransition();
   const [isAuthenticating, startAuth] = useTransition();
 
@@ -197,7 +198,10 @@ export default function HomePage() {
         // 只在 RP 的清單內調整順序，不替 RP 增加演算法（lib/algorithms.ts）
         const orderedParams = orderPubKeyCredParams(options.pubKeyCredParams || [], algorithm);
 
-        // 把 RP 回應中的 base64url 字串轉回 ArrayBuffer，組成瀏覽器 WebAuthn API 要的格式
+        // 把 RP 回應中的字串欄位轉回 ArrayBuffer，組成瀏覽器 WebAuthn API 要的格式：
+        // challenge、excludeCredentials 的 id 是 base64url；user.id（user handle）不是 base64url，
+        // binaryStringToBuffer 依序嘗試 hex、base64url、base64，都解不開時以 UTF-8 編碼
+        // （21 字元的 handle 長度除以 4 餘 1，無法以 base64 解碼，所以走 UTF-8）
         const publicKey: PublicKeyCredentialCreationOptions = {
           rp: options.rp,
           user: {

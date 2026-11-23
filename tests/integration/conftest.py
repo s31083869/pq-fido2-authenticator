@@ -2,8 +2,13 @@
 
 整合測試把 authenticator 實際產生的輸出原封不動交給 RP 驗證，抓「兩邊各自都對，接起來卻不對」的問題
 （例如欄位名稱、base64url 編碼不一致）。為了不碰使用者的資料：
-- RP 的資料庫放在 pytest 的暫存資料夾，不使用 rp_server/data/rp.db；
-- authenticator 的私鑰改存在記憶體版 keyring，不寫進 Windows 認證管理員；
+- 測試用的 RP 資料庫放在 pytest 的暫存資料夾，註冊與登入的資料列都只寫進這裡。
+  注意：`import rp_server.app` 時，模組最後一行的 `app = create_app()` 會以預設設定開啟
+  rp_server/data/rp.db 並確認資料表存在（只建表、不寫資料列）。這是 Day 5 之前就有的行為，
+  rp_server/tests 也一樣，已記入 Day 5 待辦清單；
+- authenticator 的私鑰與憑證索引都放在 pytest 的暫存資料夾：Windows 上預設的 auto 後端是
+  DPAPI 加密檔，存在索引檔旁的 credentials/；其他平台（例如 CI 的 Ubuntu）用 keyring，
+  由下面的 fake_keyring 換成記憶體版；
 - 使用者驗證一律用 NoopVerifier，不跳出 Windows Hello（CLAUDE.md「環境注意事項」）。
 """
 
@@ -31,7 +36,10 @@ from rp_server.config import RPSettings  # noqa: E402
 def fake_keyring(monkeypatch) -> Dict[Tuple[str, str], str]:
     """把 authenticator 用來保存私鑰的 keyring 換成記憶體裡的 dict。
 
-    為什麼：真的 keyring 在 Windows 上是認證管理員，測試不能寫進使用者的系統。
+    為什麼：keyring 後端會寫進作業系統的密碼庫，測試不能寫進使用者的系統。
+    authenticator 的 auto 後端只在非 Windows 平台使用 keyring（authenticator/storage.py 的
+    _resolve_backend()），所以這個替換實際上在 CI（Ubuntu）生效；Windows 上私鑰改存 DPAPI 加密檔，
+    位置在暫存資料夾，見 authenticator fixture。
     輸入：pytest 的 monkeypatch。輸出：保存內容的 dict，key 為 (service, username)。
     """
     storage: Dict[Tuple[str, str], str] = {}
