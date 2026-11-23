@@ -758,7 +758,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
     <ol class="steps">
       <li data-step="1" tabindex="0"><span class="num">1</span><div class="body"><span class="who actor client">前端網頁 → RP</span><p>使用者在註冊頁輸入帳號和顯示名稱，前端呼叫 RP 的 <code>POST /register/options</code>。</p><span class="where">程式：frontend/src/pages/index.tsx</span></div></li>
       <li data-step="2" tabindex="0"><span class="num">2</span><div class="body"><span class="who actor rp">RP → 前端網頁</span><p>RP 產生 32 bytes 的隨機 challenge 並暫存起來，回傳註冊參數：<code>rp</code>（網站 id 與名稱）、<code>user</code>（使用者的隨機 user handle）、<code>pubKeyCredParams</code>（RP 接受的演算法，預設依序為 -49、-48、-50、-54、-55：ML-DSA 在前，FN-DSA 在後）、<code>excludeCredentials</code>（這個帳號已有的憑證，避免重複註冊）。</p><span class="where">程式：rp_server/app.py 的 register_options()</span></div></li>
-      <li data-step="3" tabindex="0"><span class="num">3</span><div class="body"><span class="who actor client">前端網頁 → 攔截層</span><p>前端把 base64url 字串轉回 bytes，依使用者選的演算法調整清單順序，然後呼叫 <code>navigator.credentials.create({ publicKey })</code>。</p><span class="where">程式：frontend/src/pages/index.tsx</span></div></li>
+      <li data-step="3" tabindex="0"><span class="num">3</span><div class="body"><span class="who actor client">前端網頁 → 攔截層</span><p>前端把 base64url 字串轉回 bytes，把使用者選的演算法移到 RP 清單的第一個，其他保持原本的順序，然後呼叫 <code>navigator.credentials.create({ publicKey })</code>。前端只能在 RP 的清單<strong>裡面</strong>調整順序，不能替 RP 增加演算法：選的演算法 RP 沒宣告時，前端直接顯示錯誤並停止，不會跳出 Windows Hello。</p><span class="where">程式：frontend/src/pages/index.tsx、frontend/src/lib/algorithms.ts</span></div></li>
       <li data-step="4" tabindex="0"><span class="num">4</span><div class="body"><span class="who actor client">攔截層 → Authenticator</span><p>這個 API 已經被攔截層改寫過：它把請求裡的二進位欄位轉成 base64url 字串，再交給我們的 authenticator。</p><span class="where">程式：authenticator/bridge.py（Python bridge）、extension/src/injected/（Extension）</span></div></li>
       <li data-step="5" tabindex="0"><span class="num">5</span><div class="body"><span class="who actor auth">Authenticator 內部</span><p>依序完成：確認 rpId 和 origin 的網域一致 → 照 pubKeyCredParams 的順序，選第一個自己支援的演算法（都不支援就直接拒絕，不跳出 Windows Hello）→ 使用者驗證（Windows Hello）→ 檢查 excludeCredentials → 用 liboqs 產生金鑰對 → 產生 32 bytes 的隨機 credential ID → 保存私鑰。</p><span class="where">程式：authenticator/service.py 的 make_credential()</span></div></li>
       <li data-step="6" tabindex="0"><span class="num">6</span><div class="body"><span class="who actor auth">Authenticator → 前端網頁</span><p>回傳三樣東西：<code>clientDataJSON</code>（type 為 <code>webauthn.create</code>，加上 challenge 和 origin）、<code>authenticatorData</code>（內含 credential ID 與 COSE 格式的公鑰），以及把 authenticatorData 包成 CBOR 的 <code>attestationObject</code>（fmt 為 <code>none</code>）。</p><span class="where">程式：authenticator/webauthn.py</span></div></li>
@@ -778,7 +778,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <li><strong>筆電</strong>和<strong>桌機</strong>各自執行一份 Python authenticator，私鑰各自存在自己的 <code>authenticator/data/</code> 裡，兩台之間<strong>不會同步</strong>。</li>
       <li>網站是本專案的 RP（rpId 為 <code>localhost</code>），有兩個使用者：alice（user handle <code>Vb3qT8kLm2Xp9RfZ0aYc4</code>）與 bob（user handle <code>Qe8wPz3nH6tJ1cRk5LmA9</code>）。</li>
       <li>筆電以前在 <code>demo.yubico.com</code> 註冊過一張憑證 <strong>cred-D</strong>（<code>9pHjihRQ…brqLks</code>）。它屬於別的網站，本站的 RP 資料庫裡沒有它。</li>
-      <li>RP 接受的演算法（<code>hosted_algorithms</code>）預設依序為 -49、-48、-50、-54、-55。authenticator 照順序挑第一個自己支援的，所以沒有重排時會選 -49；FN-DSA 排在最後，只有被前端排到前面時才會被選到。</li>
+      <li>RP 接受的演算法（<code>hosted_algorithms</code>）預設依序為 -49、-48、-50、-54、-55。authenticator 照順序挑第一個自己支援的，所以沒有重排時會選 -49；FN-DSA 排在最後，只有被前端排到前面時才會被選到。選單上選的是「優先嘗試」：authenticator 不支援時，會改選清單中下一個自己支援的。</li>
     </ul>
     <p>接著依序發生下面四次註冊。</p>
   </div>
@@ -1182,8 +1182,8 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <tr><td>ML-DSA-44</td><td class="num">-48</td><td class="num">2</td><td class="num">1,312</td><td class="num">2,420</td><td><span class="pill done">已完成</span></td></tr>
       <tr><td>ML-DSA-65</td><td class="num">-49</td><td class="num">3</td><td class="num">1,952</td><td class="num">3,309</td><td><span class="pill done">已完成（RP 預設優先）</span></td></tr>
       <tr><td>ML-DSA-87</td><td class="num">-50</td><td class="num">5</td><td class="num">2,592</td><td class="num">4,627</td><td><span class="pill done">已完成</span></td></tr>
-      <tr><td>FN-DSA-512</td><td class="num">-54（暫定）</td><td class="num">1</td><td class="num">897</td><td class="num">平均約 655（上限 752）</td><td><span class="pill wip">實作中</span></td></tr>
-      <tr><td>FN-DSA-1024</td><td class="num">-55（暫定）</td><td class="num">5</td><td class="num">1,793</td><td class="num">平均約 1,271（上限 1,462）</td><td><span class="pill wip">實作中</span></td></tr>
+      <tr><td>FN-DSA-512</td><td class="num">-54（暫定）</td><td class="num">1</td><td class="num">897</td><td class="num">平均約 655（上限 752）</td><td><span class="pill wip">Python 路線完成，Extension 實作中</span></td></tr>
+      <tr><td>FN-DSA-1024</td><td class="num">-55（暫定）</td><td class="num">5</td><td class="num">1,793</td><td class="num">平均約 1,271（上限 1,462）</td><td><span class="pill wip">Python 路線完成，Extension 實作中</span></td></tr>
     </tbody>
   </table></div>
   <p class="muted">單位為 bytes。NIST 等級 1、2、3、5 分別代表：破解它至少和「破解 AES-128」「找出 SHA-256 碰撞」「破解 AES-192」「破解 AES-256」一樣困難。</p>
@@ -1316,6 +1316,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <ul>
         <li><span class="path">src/pages/index.tsx</span><span>註冊與登入頁面</span></li>
         <li><span class="path">src/lib/webauthn.ts</span><span>base64url 轉換與結果序列化</span></li>
+        <li><span class="path">src/lib/algorithms.ts</span><span>演算法選單、在 RP 清單內重排 pubKeyCredParams</span></li>
         <li><span class="path">src/lib/api.ts</span><span>呼叫 RP 的 API</span></li>
       </ul>
     </div>
@@ -1374,7 +1375,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <div class="two-col">
     <div class="card">
       <h3>已完成</h3>
-      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 92 個、Extension 11 個、前端 4 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。Day 3 起 RP 宣告並接受 FN-DSA（-54/-55），註冊時也會檢查公鑰的 kty 與長度。Day 4 補上 Python authenticator 選用 FN-DSA 的測試，註冊時改為先檢查演算法、再做使用者驗證。</p>
+      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 103 個（含跨元件的整合測試 <code>tests/integration/</code>）、Extension 11 個、前端 10 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。Day 3 起 RP 宣告並接受 FN-DSA（-54/-55），註冊時也會檢查公鑰的 kty 與長度。Day 4 補上 Python authenticator 選用 FN-DSA 的測試，註冊時改為先檢查演算法、再做使用者驗證。Day 5 加入 authenticator ↔ RP 的整合測試，前端選單加入 FN-DSA，並改為只在 RP 的清單內重排；FN-DSA-512、FN-DSA-1024 已用真的 Windows Hello 跑通 Python bridge 路線的註冊與登入。</p>
     </div>
     <div class="card">
       <h3>進行中</h3>
@@ -1423,6 +1424,8 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="term"><dt>User handle</dt><dd>RP 指派給使用者的隨機 ID，不是帳號名稱；本專案為 21 個英數字。一個 user handle 可以對應多張憑證，通常一台裝置一張。</dd></div>
       <div class="term"><dt>Challenge</dt><dd>RP 每次產生的隨機值，簽章時一起被簽進去，用來防止重放攻擊。</dd></div>
       <div class="term"><dt>pubKeyCredParams</dt><dd>RP 接受的演算法清單，依偏好排序。</dd></div>
+      <div class="term"><dt>hosted_algorithms</dt><dd>RP 的設定（<code>rp_server/config.py</code>），列出 RP 接受的 COSE 演算法與偏好順序。RP 用它產生 pubKeyCredParams，註冊時也用它檢查回來的 alg；這是「該不該收」的政策檢查，密碼學本身無法判斷。</dd></div>
+      <div class="term"><dt>演算法協商</dt><dd>WebAuthn 選演算法的方式：RP 依偏好列出接受的演算法，authenticator 依序選第一個自己支援的，RP 再確認選到的有宣告過（WebAuthn §5.4、§6.3.2、§7.1）。使用者不直接選演算法；本專案前端的選單只是 demo 用的「優先嘗試」。</dd></div>
       <div class="term"><dt>excludeCredentials</dt><dd>註冊時列出這個帳號已存在的憑證，避免同一個 authenticator 重複註冊（例子見第 4 章）。</dd></div>
       <div class="term"><dt>allowCredentials</dt><dd>登入時，RP 列出這個帳號名下登記過的憑證 ID；authenticator 只能從中挑選屬於這個網站的憑證，一把都找不到就必須回報錯誤（例子見第 5 章）。</dd></div>
       <div class="term"><dt>UP（User Presence）</dt><dd>使用者在場，例如按了按鈕；flags 中的 0x01。</dd></div>
@@ -1506,6 +1509,8 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="term"><dt>bun</dt><dd>JavaScript 執行環境與套件管理工具。</dd></div>
       <div class="term"><dt>TDD</dt><dd>測試驅動開發：先寫一個會失敗的測試，再寫程式讓它通過。</dd></div>
       <div class="term"><dt>CI</dt><dd>持續整合：每次提交或開 PR 時，自動在另一台機器上執行測試。</dd></div>
+      <div class="term"><dt>整合測試</dt><dd>把兩個以上的元件接在一起測，例如把 authenticator 真正的輸出直接交給 RP 驗證，抓「各自都對、接起來卻不對」的問題；本專案放在 <code>tests/integration/</code>。</dd></div>
+      <div class="term"><dt>端到端測試（E2E）</dt><dd>用真的瀏覽器、真的 Windows Hello，從頁面操作走完整條流程；本專案由使用者照清單親手執行。</dd></div>
     </dl>
   </div>
 </section>
