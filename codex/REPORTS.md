@@ -406,3 +406,4 @@ liboqs 編譯優化：
 59. 2026-11-17：RP 與 authenticator 的 COSE → liboqs 對照從 Day 2 起改由共用演算法表產生，FN-DSA -54/-55 隨之對兩端生效；RP 的 `hosted_algorithms` 不變，宣告與註冊仍只限 ML-DSA，Day 3 才開放。
 60. 2026-11-18：RP 的 `hosted_algorithms` 預設改為 `[-49, -48, -50, -54, -55]`（依 D6），宣告並接受 FN-DSA。註冊時另外要求 COSE_Key 的 kty 為 7（AKP，RFC 9964），公鑰長度等於共用演算法表的 `publicKeyBytes`，不符回 400 `Invalid public key`；長度錯的公鑰若存進 DB，登入時太短會驗章失敗，太長會讓 liboqs-python 丟出 `ValueError`（500）。
 61. 2026-11-18：Python authenticator 註冊時先選演算法、再做使用者驗證（WebAuthn §6.3.2 第 2 步先於第 6 步）。RP 給的演算法都不支援時直接拒絕，不跳出 Windows Hello。excludeCredentials 維持在使用者驗證之後，規格要求先取得使用者同意才回「重複」，避免網站在使用者不知情時探測裝置上的憑證。
+62. 2026-11-23：前端只在 RP 發出的 `pubKeyCredParams` 內重排：選單選的演算法移到第一個，其他保持原順序；RP 沒宣告時前端顯示錯誤並停止，不呼叫 `navigator.credentials.create`（WebAuthn §5.4，前端不替 RP 增加演算法）。前端選單自己保留一份清單，由 bun 測試比對 `shared/pq-algorithms.json`，不直接 import（避免修改 Next.js 建置設定）。跨元件整合測試放在 `tests/integration/`，`tests` 一併加入 pytest `testpaths`、CI 與 `CLAUDE.md` 的 ruff 路徑（使用者同意修改 `CLAUDE.md`）。

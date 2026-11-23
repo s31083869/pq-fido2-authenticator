@@ -12,6 +12,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
 import { rpFetch } from "@/lib/api";
+import { ALGORITHM_OPTIONS, orderPubKeyCredParams, type PubKeyCredParam } from "@/lib/algorithms";
 import {
   base64urlToBuffer,
   binaryStringToBuffer,
@@ -82,7 +83,7 @@ type RegisterOptionsPayload = {
   challenge: string;
   rp: { id: string; name: string };
   user: { id: string; name: string; displayName: string };
-  pubKeyCredParams: { type: "public-key"; alg: number }[];
+  pubKeyCredParams: PubKeyCredParam[];
   timeout: number;
   attestation: AttestationConveyancePreference;
   authenticatorSelection: AuthenticatorSelectionCriteria;
@@ -98,11 +99,6 @@ type AuthenticateOptionsPayload = {
   userVerification: "required" | "preferred" | "discouraged";
 };
 
-const algorithmOptions = [
-  { label: "ML-DSA-44", value: -48 },
-  { label: "ML-DSA-65", value: -49 },
-  { label: "ML-DSA-87", value: -50 },
-];
 const CTA_BUTTON_CLASS =
   "w-full border border-[#FB6A23] bg-[#FFF7F0] text-[#FB6A23] font-semibold shadow-[0_10px_30px_rgba(251,106,35,0.15)] transition-colors hover:bg-[#FFEFE3]";
 
@@ -130,7 +126,9 @@ export default function HomePage() {
   const [currentRpId, setCurrentRpId] = useState("");
   const [credentialBadgeMode, setCredentialBadgeMode] = useState<"register" | "authenticate" | "manual">("manual");
   const [activeTab, setActiveTab] = useState("register");
-  const [algorithm, setAlgorithm] = useState<number>(algorithmOptions[1].value);
+  // 選單預設 ALGORITHM_OPTIONS 的第 2 筆 ML-DSA-65（-49），也就是 RP 預設清單的第一個，
+  // 所以不改選單時送出的順序和 RP 相同
+  const [algorithm, setAlgorithm] = useState<number>(ALGORITHM_OPTIONS[1].value);
   const [isRegistering, startRegister] = useTransition();
   const [isAuthenticating, startAuth] = useTransition();
 
@@ -178,6 +176,13 @@ export default function HomePage() {
     void refreshCredentials();
   }, [refreshCredentials]);
 
+  // 註冊流程（送出註冊表單時執行）：
+  //   1. 向 RP 的 /register/options 取得註冊參數（含 RP 依 hosted_algorithms 發出的 pubKeyCredParams）；
+  //   2. 依選單在 RP 的清單內重排，選的演算法移到第一個；RP 沒宣告時拋出錯誤，在這裡就停下，
+  //      不呼叫 navigator.credentials.create，使用者也不會白白看到 Windows Hello（WebAuthn §5.4）；
+  //   3. 呼叫 navigator.credentials.create，由 bridge 攔截交給 authenticator（選清單中第一個支援的演算法）；
+  //   4. 把結果送到 RP 的 /register/verify，RP 再用 hosted_algorithms 檢查一次 alg（WebAuthn §7.1）。
+  // 輸入：表單的 username、displayName；輸出：無（結果以 toast 與註冊 log 顯示，成功後重新整理憑證清單）。
   const handleRegister = registerForm.handleSubmit((values) => {
     startRegister(async () => {
       try {
@@ -190,12 +195,13 @@ export default function HomePage() {
         );
         pushLog(setRegisterLog, "Received creation options");
 
-        const normalizedParams = options.pubKeyCredParams || [];
-        const orderedParams = [
-          { type: "public-key" as const, alg: algorithm },
-          ...normalizedParams.filter((param) => param.alg !== algorithm),
-        ];
+        // 只在 RP 的清單內調整順序，不替 RP 增加演算法（lib/algorithms.ts）
+        const orderedParams = orderPubKeyCredParams(options.pubKeyCredParams || [], algorithm);
 
+        // 把 RP 回應中的字串欄位轉回 ArrayBuffer，組成瀏覽器 WebAuthn API 要的格式：
+        // challenge、excludeCredentials 的 id 是 base64url；user.id（user handle）不是 base64url，
+        // binaryStringToBuffer 依序嘗試 hex、base64url、base64，都解不開時以 UTF-8 編碼
+        // （21 字元的 handle 長度除以 4 餘 1，無法以 base64 解碼，所以走 UTF-8）
         const publicKey: PublicKeyCredentialCreationOptions = {
           rp: options.rp,
           user: {
@@ -218,11 +224,14 @@ export default function HomePage() {
           throw new Error("navigator.credentials is not available in this browser");
         }
 
+        // Python 路線上，bridge 注入的腳本會攔截這個呼叫，交給 Python authenticator 產生金鑰與 attestation
         const credential = (await navigator.credentials.create({
           publicKey,
         })) as PublicKeyCredential;
+        // ArrayBuffer 欄位轉回 base64url，才能用 JSON 送給 RP
         const serialized = serializeAttestation(credential);
 
+        // 沒有 attestationObject 或 clientDataJSON 時 RP 無法驗證，通常代表 bridge 沒有在執行
         const attestationResponse = serialized.response as Record<string, unknown>;
         if (!attestationResponse.attestationObject || !attestationResponse.clientDataJSON) {
           throw new Error(
@@ -230,6 +239,7 @@ export default function HomePage() {
           );
         }
 
+        // RP 驗證 challenge、origin、rpIdHash，並確認 alg 在 hosted_algorithms 內，通過才存進 DB
         await rpFetch("/register/verify", {
           username: values.username,
           credential: serialized,
@@ -238,6 +248,8 @@ export default function HomePage() {
         toast.success("Registration completed");
         await refreshCredentials("register");
       } catch (error) {
+        // 任何一步失敗都在這裡顯示，包含第 2 步「RP 沒有宣告選的演算法」；
+        // excludeCredentials 擋下的重複註冊改成較好懂的訊息
         console.error(error);
         const message = (error as Error).message ?? "Registration failed";
         const friendlyMessage = message.includes("Credential creation excluded")
@@ -340,7 +352,7 @@ export default function HomePage() {
                 <CardHeader>
                   <CardTitle>Register Credential</CardTitle>
                   <CardDescription className="text-slate-600">
-                    Request creation options from the RP, reorder ML-DSA algorithms, and invoke
+                    Request creation options from the RP, move the chosen algorithm to the front of the RP&apos;s list, and invoke
                     `navigator.credentials.create`.
                   </CardDescription>
                 </CardHeader>
@@ -383,7 +395,7 @@ export default function HomePage() {
                       />
 
                       <div className="space-y-2">
-                        <FormLabel className="text-slate-700">ML-DSA algorithm</FormLabel>
+                        <FormLabel className="text-slate-700">Algorithm</FormLabel>
                         <Select
                           value={String(algorithm)}
                           onValueChange={(value) => setAlgorithm(Number(value))}
@@ -392,7 +404,7 @@ export default function HomePage() {
                             <SelectValue placeholder="Select algorithm" />
                           </SelectTrigger>
                           <SelectContent className="border border-slate-200 bg-white text-slate-900">
-                            {algorithmOptions.map((option) => (
+                            {ALGORITHM_OPTIONS.map((option) => (
                               <SelectItem key={option.value} value={String(option.value)}>
                                 {option.label}
                               </SelectItem>

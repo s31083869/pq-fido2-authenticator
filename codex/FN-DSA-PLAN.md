@@ -6,7 +6,7 @@
 | 分支 | 每天一個分支（`day-01`、`day-02`…），Claude 開 PR，由使用者在 GitHub 合併；Day 0 使用 `feature/fn-dsa-integration` |
 | 依據 | [workflow.md](../workflow.md)、[FALCON_INTEGRATION_HANDOVER.md](docs/FALCON_INTEGRATION_HANDOVER.md)、[CLAUDE.md](../CLAUDE.md)（協作守則） |
 | 工作量 | 每天約 3 小時，共 12 天（Day 1–Day 12） |
-| 日期調整 | 11/16 起整體順延 2 天：Day 1 = 11/16，Day 12 = 11/27 |
+| 日期調整 | 11/16 起整體順延 2 天：Day 1 = 11/16，Day 12 = 11/27。11/19–11/22 沒有進行，Day 5 起再順延 3 天：Day 5 = 11/23，Day 12 = 11/30（下方各 Day 標題保留原訂日期） |
 | 狀態 | 已確認（第 3 節的設計決策 D1–D6 已於 2026-11-13 確認） |
 
 ---
@@ -106,12 +106,12 @@
 
 **完成標準**：authenticator 嚴格依照 RP 的 `pubKeyCredParams` 選擇演算法。
 
-### Day 5｜11/20：Python 路線整合 + 前端
-- [ ] pytest 整合測試：authenticator ↔ RP 完整註冊 + 登入，五種演算法都跑（1.5h）
-- [ ] 前端選單加入 FN-DSA；排序只在 RP 有宣告的演算法中進行（目前會把使用者選的演算法硬塞到最前面）（1h）
-- [ ] 手動端到端：-54、-55 各跑一次註冊 + 登入，並檢查 DB 的 `algorithm` 欄位（0.5h）
+### Day 5｜11/20（實際 11/23）：Python 路線整合 + 前端（已完成，詳見 `codex/worklog/day-05.md`）
+- [x] pytest 整合測試：authenticator ↔ RP 完整註冊 + 登入，五種演算法都跑（1.5h）（`tests/integration/`，另測 RP 擋下前端硬塞的 -54）
+- [x] 前端選單加入 FN-DSA；排序只在 RP 有宣告的演算法中進行（目前會把使用者選的演算法硬塞到最前面）（1h）（RP 沒宣告時顯示錯誤並停止）
+- [x] 手動端到端：-54、-55 各跑一次註冊 + 登入，並檢查 DB 的 `algorithm` 欄位（0.5h）
 
-**完成標準**：Python bridge 路線的 FN-DSA 端到端成功（F17 前半）。
+**完成標準**：Python bridge 路線的 FN-DSA 端到端成功（F17 前半）。結果：使用者以真的 Windows Hello 跑通 -54、-55 的註冊與登入；Python 測試由 92 個增為 103 個，前端由 4 個增為 10 個，全部通過。
 
 ### Day 6｜11/21：F07–F10 Extension TypeScript 層
 - [ ] `SupportedAlg` 型別、設定、options 選單加入 -54/-55（1h）
