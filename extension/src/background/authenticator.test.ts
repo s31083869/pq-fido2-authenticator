@@ -59,6 +59,12 @@ class TestSigner implements PQSigner {
   /** 最近一次 sign 回傳的簽章，用來確認 authenticator 原封不動放進回應 */
   lastSignature: Uint8Array | null = null;
 
+  /**
+   * 產生假的金鑰對，並把收到的演算法記進 keygenCalls（T2、T5 用來確認選了哪個演算法、或完全沒有產生金鑰）。
+   *
+   * @param algorithm authenticator 選到的 COSE 演算法編號
+   * @returns 長度等於共用表 publicKeyBytes／privateKeyBytes 的可重現 bytes；每次呼叫內容都不同
+   */
   async generateKeyPair(algorithm: SupportedAlg): Promise<GeneratedKeyPair> {
     this.keygenCalls.push(algorithm);
     const run = this.counter++;
@@ -68,6 +74,16 @@ class TestSigner implements PQSigner {
     };
   }
 
+  /**
+   * 產生假的簽章，並把演算法與私鑰長度記進 signCalls、把回傳值存進 lastSignature（T4 用來比對）。
+   *
+   * 長度：FN-DSA 用 FN_DSA_TEST_SIGNATURE_BYTES（650／1300，刻意比上限短）；ML-DSA 用固定長度 SIGNATURE_BYTES。
+   *
+   * @param algorithm 憑證的 COSE 演算法編號
+   * @param privateKey 從 chrome.storage 取回的私鑰
+   * @param message 要簽的資料（authData ‖ SHA-256(clientDataJSON)，WebAuthn §6.3.3）
+   * @returns 由演算法、私鑰與訊息決定的可重現 bytes
+   */
   async sign(algorithm: SupportedAlg, privateKey: Uint8Array, message: Uint8Array): Promise<Uint8Array> {
     this.signCalls.push({ algorithm, privateKeyLength: privateKey.length });
     // 指紋包含私鑰與訊息，所以不同的 authData（signCount 不同）會得到不同的假簽章
@@ -248,7 +264,7 @@ describe("PQAuthenticator", () => {
   });
 
   // T2：依 RP 清單的順序，選第一個 Extension 支援的演算法；回應、簽章器、storage 三處一致。
-  // 依據：workflow.md F08（[-7, -54] 選 -54）、F13、F14（storage 保存 algorithm）；WebAuthn §6.3.2 第 2 步。
+  // 依據：workflow.md F08（[-7, -54] 選 -54）、F13、F14（storage 保存 algorithm）；WebAuthn §6.3.2（Level 2 第 7 步：用清單中第一個支援的演算法產生金鑰）。
   test.each([
     ["a ES256 then FN-DSA-512", [-7, -54], -54],
     ["b FN-DSA-1024 only", [-55], -55],

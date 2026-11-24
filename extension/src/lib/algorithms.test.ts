@@ -39,7 +39,8 @@ describe("extension algorithm registry", () => {
     expect(supported).toEqual([-48, -49, -50, -54, -55]);
   });
 
-  // T1：三張大小表的每一筆都等於共用表（D3）。
+  // T1：三張大小表的每一筆都等於共用表（D3）。這個測試只檢查「有沒有接對共用表」：被測模組和測試讀同一份 JSON，
+  // 共用表本身的數值若改錯，這裡照樣通過；數值錯誤由下面依規格書數值比對的測試抓（依獨立審查補註）。
   test("byte-size tables match the shared registry", () => {
     for (const entry of registry.algorithms) {
       const alg = entry.coseAlg as (typeof SUPPORTED_ALGORITHMS)[number];

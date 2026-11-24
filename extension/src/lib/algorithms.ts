@@ -11,7 +11,7 @@ import registry from "../../../shared/pq-algorithms.json";
  *
  * -48/-49/-50 為 ML-DSA-44/65/87（RFC 9964、FIPS 204）；-54/-55 為 FN-DSA-512/1024
  * （Falcon 第三輪規格 v1.2，透過 liboqs 的 Falcon-512/1024 實作，決策 D2）。
- * authenticator 只從 RP 的 pubKeyCredParams 中挑選這些編號（WebAuthn §6.3.2 第 2 步）。
+ * authenticator 只從 RP 的 pubKeyCredParams 中挑選這些編號（WebAuthn §6.3.2 第 2 步與 Level 2 第 7 步）。
  */
 export const SUPPORTED_ALGORITHMS = [-48, -49, -50, -54, -55] as const;
 

@@ -34,7 +34,7 @@ function ensure(condition: unknown, name: string, message: string): asserts cond
 /**
  * 從 RP 的 pubKeyCredParams 選出這次註冊要用的簽章演算法。
  *
- * 規則（WebAuthn §6.3.2 authenticatorMakeCredential 第 2 步）：依 RP 給的順序（代表 RP 的偏好），
+ * 規則（WebAuthn §6.3.2 authenticatorMakeCredential：第 2 步要求至少一個支援，否則回 NotSupportedError；Level 2 第 7 步用清單中第一個支援的產生金鑰）：依 RP 給的順序（代表 RP 的偏好），
  * 選第一個 type 為 public-key、而且 Extension 支援的演算法（ML-DSA -48/-49/-50、FN-DSA -54/-55，
  * 見 @/lib/algorithms）。Extension 只從 RP 的清單裡挑，不會自己加入 RP 沒宣告的演算法（workflow.md F16）。
  *
