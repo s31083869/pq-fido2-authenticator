@@ -1,22 +1,8 @@
 import type { SupportedAlg } from "@/types/messages";
 
-export const PUBLIC_KEY_BYTES: Record<SupportedAlg, number> = {
-  [-48]: 1312,
-  [-49]: 1952,
-  [-50]: 2592
-};
-
-export const PRIVATE_KEY_BYTES: Record<SupportedAlg, number> = {
-  [-48]: 2560,
-  [-49]: 4032,
-  [-50]: 4896
-};
-
-export const SIGNATURE_BYTES: Record<SupportedAlg, number> = {
-  [-48]: 2420,
-  [-49]: 3309,
-  [-50]: 4627
-};
+// 金鑰與簽章的大小常數改由共用演算法表產生（決策 D3、workflow.md F10），這裡只轉出，
+// 讓既有的 import 路徑不變。FN-DSA 的 SIGNATURE_BYTES 是上限而不是固定長度，說明見 @/lib/algorithms。
+export { PRIVATE_KEY_BYTES, PUBLIC_KEY_BYTES, SIGNATURE_BYTES } from "@/lib/algorithms";
 
 export interface GeneratedKeyPair {
   publicKey: Uint8Array;

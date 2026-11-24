@@ -1326,6 +1326,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
         <li><span class="path">src/injected/</span><span>在頁面中改寫 navigator.credentials</span></li>
         <li><span class="path">src/content/</span><span>在頁面與 background 之間轉送訊息</span></li>
         <li><span class="path">src/background/</span><span>認證器邏輯、WASM 載入、儲存、原生使用者驗證</span></li>
+        <li><span class="path">src/lib/algorithms.ts</span><span>支援的演算法清單與金鑰／簽章大小（讀共用演算法表）、設定頁選單的選項</span></li>
         <li><span class="path">wasm/pq_bridge.c</span><span>把 COSE 編號對應到 liboqs 的 C 介面</span></li>
         <li><span class="path">scripts/</span><span>編譯 liboqs 與 WASM 的腳本</span></li>
       </ul>
@@ -1375,11 +1376,11 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <div class="two-col">
     <div class="card">
       <h3>已完成</h3>
-      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 103 個（含跨元件的整合測試 <code>tests/integration/</code>）、Extension 11 個、前端 10 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。Day 3 起 RP 宣告並接受 FN-DSA（-54/-55），註冊時也會檢查公鑰的 kty 與長度。Day 4 補上 Python authenticator 選用 FN-DSA 的測試，註冊時改為先檢查演算法、再做使用者驗證。Day 5 加入 authenticator ↔ RP 的整合測試，前端選單加入 FN-DSA，並改為只在 RP 的清單內重排；FN-DSA-512、FN-DSA-1024 已用真的 Windows Hello 跑通 Python bridge 路線的註冊與登入。</p>
+      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 103 個（含跨元件的整合測試 <code>tests/integration/</code>）、Extension 30 個、前端 10 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。Day 3 起 RP 宣告並接受 FN-DSA（-54/-55），註冊時也會檢查公鑰的 kty 與長度。Day 4 補上 Python authenticator 選用 FN-DSA 的測試，註冊時改為先檢查演算法、再做使用者驗證。Day 5 加入 authenticator ↔ RP 的整合測試，前端選單加入 FN-DSA，並改為只在 RP 的清單內重排；FN-DSA-512、FN-DSA-1024 已用真的 Windows Hello 跑通 Python bridge 路線的註冊與登入。Day 6 Extension 的支援清單、型別與金鑰／簽章大小改從共用表讀取並加入 FN-DSA，會依 RP 的清單選用 -54/-55；FN-DSA 簽章長度不固定，原封不動回傳。</p>
     </div>
     <div class="card">
       <h3>進行中</h3>
-      <p>FN-DSA-512 與 FN-DSA-1024 的整合，依照 12 天的計畫進行，詳見 <code>codex/FN-DSA-PLAN.md</code>，每天的細節記在 <code>codex/worklog/</code>。</p>
+      <p>FN-DSA-512 與 FN-DSA-1024 的整合，依照 12 天的計畫進行，詳見 <code>codex/FN-DSA-PLAN.md</code>，每天的細節記在 <code>codex/worklog/</code>。Extension 已能選用 FN-DSA，但 WASM 要到 Day 7 才編進 Falcon，Day 8 才開放本機 RP，在那之前 Extension 還無法實際產生 Falcon 簽章。</p>
     </div>
   </div>
   <div class="prose"><h3>已知限制</h3></div>
@@ -1444,13 +1445,14 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="term"><dt>attestationObject</dt><dd>註冊時回傳的 CBOR 結構，包含 fmt、attStmt、authData。</dd></div>
       <div class="term"><dt>rpIdHash</dt><dd>SHA-256(rpId)，位於 authenticatorData 開頭 32 bytes。</dd></div>
       <div class="term"><dt>CBOR</dt><dd>二進位版的 JSON（RFC 8949），WebAuthn 用它編碼 attestationObject 與公鑰。</dd></div>
+      <div class="term"><dt>Major type（CBOR 主類型）</dt><dd>CBOR 每個資料項目第一個 byte 的前 3 個 bits，表示資料類型：0 正整數、1 負整數、2 byte string、5 map 等；後 5 個 bits 是數值或長度，大於等於 24 時改由後面 1、2、4 或 8 個 bytes 表示。例如 -54 編成 <code>38 35</code>（負整數存的是 -1 - (-54) = 53 = 0x35），897 bytes 的公鑰長度編成 <code>59 03 81</code>。</dd></div>
       <div class="term"><dt>COSE</dt><dd>用 CBOR 表示金鑰與演算法的標準；WebAuthn 的公鑰採用 COSE_Key 格式。</dd></div>
       <div class="term"><dt>COSE_Key</dt><dd>用整數為 key 的 CBOR map 表示公鑰，例如 {1: kty, 3: alg, -1: pub}。</dd></div>
       <div class="term"><dt>kty</dt><dd>COSE_Key 的金鑰類型欄位（標籤 1），例如 2 = EC2、7 = AKP。</dd></div>
       <div class="term"><dt>AKP（Algorithm Key Pair）</dt><dd>RFC 9964 定義的金鑰類型（kty = 7），用在公鑰是一整串 bytes 的後量子演算法。</dd></div>
       <div class="term"><dt>COSE alg</dt><dd>演算法的整數編號，例如 -7 = ES256、-48 = ML-DSA-44。</dd></div>
       <div class="term"><dt>暫定編號（provisional）</dt><dd>IETF 草案申請、但 IANA 尚未正式分配的 COSE alg，例如 FN-DSA 的 -54、-55；正式分配前可能變動。已正式分配的（例如 ML-DSA 的 -48/-49/-50）在共用演算法表中標為 standard。</dd></div>
-      <div class="term"><dt>共用演算法表（shared registry）</dt><dd><code>shared/pq-algorithms.json</code>：COSE alg 與 liboqs 名稱、金鑰與簽章大小的唯一資料來源。RP、authenticator 都從這裡讀，避免兩邊把同一個編號翻成不同的演算法。</dd></div>
+      <div class="term"><dt>共用演算法表（shared registry）</dt><dd><code>shared/pq-algorithms.json</code>：COSE alg 與 liboqs 名稱、金鑰與簽章大小的唯一資料來源。RP、Python authenticator 與 Extension 都從這裡讀（前端自己保留一份選單，由測試比對），避免各層把同一個編號翻成不同的演算法。</dd></div>
       <div class="term"><dt>Padded／unpadded（補滿／不補滿）</dt><dd>Falcon 簽章的兩種格式，兩者都先經過壓縮編碼。本專案用的不補滿格式（liboqs 的 Falcon-512）直接使用壓縮結果，長度每次不同，只有上限（752／1462 bytes）；補滿格式（Falcon-padded-512）再補 0 到固定長度（666／1280 bytes）。</dd></div>
       <div class="term"><dt>base64url</dt><dd>把二進位轉成可放進網址與 JSON 的文字：用 - 和 _，結尾不補 =。</dd></div>
     </dl>
@@ -1501,6 +1503,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="term"><dt>frame</dt><dd>瀏覽器裡裝載一份網頁的框：分頁本身是主 frame，頁面中的每個 iframe 各是一個 frame。Python bridge 從呼叫者 frame 的網址取出 origin。</dd></div>
       <div class="term"><dt>Chrome MV3</dt><dd>Chrome extension 的第三版規格（Manifest V3）。</dd></div>
       <div class="term"><dt>Service worker</dt><dd>MV3 extension 的背景程式；Extension 版的認證器邏輯在這裡執行。</dd></div>
+      <div class="term"><dt>Options page（設定頁）</dt><dd>Chrome Extension 自帶的設定畫面（本專案是 <code>extension/src/options/App.tsx</code>），設定存在 <code>chrome.storage.local</code>，background 每次註冊或登入時讀取。</dd></div>
       <div class="term"><dt>Content script／Injected script</dt><dd>content script 在隔離環境中轉送訊息；injected script 在頁面環境中改寫 navigator.credentials。</dd></div>
       <div class="term"><dt>Native Messaging</dt><dd>讓 extension 呼叫本機程式的機制，用來啟動 Windows Hello 與 Touch ID。</dd></div>
       <div class="term"><dt>DPAPI</dt><dd>Windows 的資料保護 API，用目前使用者的身分加密資料；Python authenticator 用它加密私鑰。</dd></div>

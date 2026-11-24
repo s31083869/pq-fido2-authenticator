@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ALGORITHM_OPTIONS } from "@/lib/algorithms";
 import type { Settings, SupportedAlg } from "@/types/messages";
 
 const SETTINGS_KEY = "pq_settings_v1";
@@ -29,7 +30,17 @@ interface NativeUvStatusState {
   platform?: string;
 }
 
+/**
+ * Extension 的設定頁（options page）。
+ *
+ * 做什麼：讀取 chrome.storage.local 裡的設定（是否啟用攔截、預設演算法、使用者驗證方式），
+ * 讓使用者修改後按 Save 存回；選了 native-touch-id／native-windows-hello 時，另外向 background
+ * 查詢 native host 是否可用。background 的 PQAuthenticator 每次註冊／登入時都會重新讀取這份設定。
+ *
+ * @returns 設定頁的 React 元素
+ */
 function App() {
+  // 畫面上正在編輯的設定；尚未按 Save 前只存在畫面上，不影響 background
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [saved, setSaved] = useState(false);
   const [nativeUvStatus, setNativeUvStatus] = useState<NativeUvStatusState>({
@@ -38,6 +49,7 @@ function App() {
     detail: "尚未檢查"
   });
 
+  // 開啟設定頁時讀取已儲存的設定，缺少的欄位用預設值補上（舊版設定可能少欄位）
   useEffect(() => {
     chrome.storage.local.get(SETTINGS_KEY).then((result) => {
       setSettings({
@@ -47,11 +59,13 @@ function App() {
     });
   }, []);
 
+  // 修改單一欄位；改過之後清掉「Saved.」提示，提醒使用者還沒存檔
   const updateSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => {
     setSaved(false);
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
+  // 向 background 詢問 native host（Touch ID／Windows Hello 的本機程式）是否已安裝並可用
   const refreshNativeUvStatus = () => {
     setNativeUvStatus((prev) => ({ ...prev, loading: true }));
     chrome.runtime.sendMessage(
@@ -93,12 +107,14 @@ function App() {
     );
   };
 
+  // 切換到 native 使用者驗證模式時，自動檢查一次 native host 狀態
   useEffect(() => {
     if (isNativeUvMode(settings.uvMode)) {
       refreshNativeUvStatus();
     }
   }, [settings.uvMode]);
 
+  // 把整份設定寫回 chrome.storage.local，background 下次註冊／登入時就會讀到
   const onSave = async () => {
     await chrome.storage.local.set({ [SETTINGS_KEY]: settings });
     setSaved(true);
@@ -128,9 +144,14 @@ function App() {
                 updateSetting("defaultAlgorithm", Number(event.target.value) as SupportedAlg)
               }
             >
-              <option value="-48">ML-DSA-44 (-48)</option>
-              <option value="-49">ML-DSA-65 (-49)</option>
-              <option value="-50">ML-DSA-87 (-50)</option>
+              {/* 選項由共用演算法表產生（決策 D3、Day 6 第 3 項），包含 FN-DSA -54/-55。
+                  注意：目前只在 RP 的 pubKeyCredParams 為空時才會用到這個值，而 makeCredential()
+                  已先擋掉空清單，所以實際上沒有作用（Day 6 待辦）；演算法一律依 RP 的清單選擇。 */}
+              {ALGORITHM_OPTIONS.map(({ label, value }) => (
+                <option key={value} value={String(value)}>
+                  {label} ({value})
+                </option>
+              ))}
             </select>
           </label>
 

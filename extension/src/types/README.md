@@ -14,4 +14,4 @@ Shared TypeScript contracts for bridge/runtime/storage.
    1. `PersistedCredential`
    2. `Settings`
 4. algorithm domain:
-   1. `SupportedAlg` (`-48/-49/-50`)
+   1. `SupportedAlg`（`-48/-49/-50/-54/-55`，定義在 `src/lib/algorithms.ts`，由測試比對共用演算法表 `shared/pq-algorithms.json`）
