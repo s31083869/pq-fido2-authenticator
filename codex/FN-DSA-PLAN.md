@@ -113,12 +113,12 @@
 
 **完成標準**：Python bridge 路線的 FN-DSA 端到端成功（F17 前半）。結果：使用者以真的 Windows Hello 跑通 -54、-55 的註冊與登入；Python 測試由 92 個增為 103 個，前端由 4 個增為 10 個，全部通過。
 
-### Day 6｜11/21：F07–F10 Extension TypeScript 層
-- [ ] `SupportedAlg` 型別、設定、options 選單加入 -54/-55（1h）
-- [ ] `SUPPORTED_ALGORITHMS`、`toSupportedAlg()`、`selectAlgorithm()`、長度常數改用共用表（1h）
-- [ ] bun 測試：`[-7, -54]` 選到 -54；`credentialPublicKey[3] === -54`；簽章長度以上限處理（1h）
+### Day 6｜11/21（實際 11/24）：F07–F10 Extension TypeScript 層（已完成，詳見 `codex/worklog/day-06.md`）
+- [x] `SupportedAlg` 型別、設定、options 選單加入 -54/-55（1h）
+- [x] `SUPPORTED_ALGORITHMS`、`toSupportedAlg()`、`selectAlgorithm()`、長度常數改用共用表（1h）（新增 `extension/src/lib/algorithms.ts`，直接 import 共用表；`toSupportedAlg()` 改為 `isSupportedAlg()`）
+- [x] bun 測試：`[-7, -54]` 選到 -54；`credentialPublicKey[3] === -54`；簽章長度以上限處理（1h）（T1–T5；COSE_Key 的 bytes 依 RFC 8949 手算）
 
-**完成標準**：TypeScript 型別檢查與 bun 測試通過。
+**完成標準**：TypeScript 型別檢查與 bun 測試通過。結果：Extension 測試由 11 個增為 30 個，型別檢查通過。11/24 使用者確認保留 Extension 的 FN-DSA（Decision Log 第 63 條）。
 
 ### Day 7｜11/22：F11 + F12 WASM
 - [ ] `pq_bridge.c` 加入 -54 → `Falcon-512`、-55 → `Falcon-1024`（0.5h）

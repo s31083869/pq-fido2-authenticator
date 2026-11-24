@@ -4,7 +4,7 @@
 |---|---|
 | 日期 | 2026-11-24（計畫原訂 11/21，已順延） |
 | 分支 | `day-06`（從 `origin/main` 42d98eb 開出） |
-| 狀態 | 開工：測試案例 T1–T5 已核准（11/24），實作中 |
+| 狀態 | 完工：四項實作、破壞檢查與依獨立審查的修正都已完成；尚未 push，待使用者看過審查結果再開 PR |
 
 ---
 
@@ -84,7 +84,7 @@ Falcon 第三輪規格 v1.2 第 3.11.6 節的不補滿格式（決策 D2），�
 
 | 位置 | 怎麼處理 |
 |---|---|
-| WASM bridge 的 `sign()`（`liboqs-wasm-bridge.ts:171–202`） | 先配置上限大小的緩衝區，再依 C 函式回傳的實際長度切出簽章。已經寫好，今天不用改 |
+| WASM bridge 的 `sign()`（`liboqs-wasm-bridge.ts:163–202`） | 先配置上限大小的緩衝區，再依 C 函式回傳的實際長度切出簽章。已經寫好，今天不用改 |
 | `SIGNATURE_BYTES` 常數 | 對 FN-DSA 代表上限，不是固定長度；註解寫清楚 |
 | authenticator 的 `getAssertion()` | 簽章器回傳多長就原封不動放進回應，不補長、不截斷。T4 確認 |
 | 測試的 `TestSigner` | 目前一律回傳 `SIGNATURE_BYTES` 長度的假簽章；FN-DSA 改回傳比上限短的長度，才測得出「不補長」 |
@@ -161,6 +161,8 @@ options 選單（第 3 項）是 React 畫面，bun 測試碰不到；資料來�
 
 - 設定頁的 `defaultAlgorithm` 沒有作用（見「待你決定」第 2 點）。
 - Day 6 完成到 Day 7 完成之間，RP 若把 FN-DSA 排在前面，Extension 會選 FN-DSA 再於產生金鑰時失敗（架構背景第 2 點）。目前只攔截 demo.yubico.com，不會發生；Day 7 完成後自然消失。
+- （獨立審查）`extension/README.md:13` 仍寫只支援 ML-DSA；另外要註明 Extension 會 import 資料夾外的 `shared/pq-algorithms.json`，建置時需要整個 repo。Day 11 文件同步處理。
+- （獨立審查）Day 4、Day 5 的工作紀錄與程式註解也把「依清單順序選第一個支援的」寫成 WebAuthn §6.3.2 第 2 步，正確應為 Level 2 第 7 步。Day 11 文件同步時一併修正。
 - 根目錄 `README.md` 的「快速開始」只寫 Playwright 路線，沒有說明 Extension 才是成品、兩條路線各自的定位。Day 11 文件同步（F18）時補上。
 - 沿用 Day 1–5 的待辦清單。
 
@@ -185,3 +187,76 @@ options 選單（第 3 項）是 React 畫面，bun 測試碰不到；資料來�
 - 使用者重述（11/24）：問題 2「比上限短才分得出補零 bug」；問題 3「避免球員兼裁判」。兩題都已對上。
 
 - 使用者核准測試案例 T1–T5（11/24）。
+
+---
+
+## 完工
+
+### 實際修改
+
+| 檔案:行號範圍 | 改了什麼 | 目的 | commit |
+|---|---|---|---|
+| `extension/src/lib/algorithms.ts:1–84`（新增） | `SUPPORTED_ALGORITHMS`（`[-48, -49, -50, -54, -55] as const`）、由它推出的 `SupportedAlg`、`isSupportedAlg()`；`PUBLIC_KEY_BYTES`、`PRIVATE_KEY_BYTES`、`SIGNATURE_BYTES` 直接由 `shared/pq-algorithms.json` 產生；`ALGORITHM_OPTIONS` | F07、F08、F10；決策 D3（共用表是唯一來源）；「待你決定」第 1 點採 A | `47f3753` |
+| `extension/src/lib/algorithms.test.ts:1–84`（新增） | T1：支援清單、三張大小表、選單選項比對共用表；大小另外比對規格書數值；`pq-signer.ts` 轉出的必須是同一份表 | T1 | `47f3753` |
+| `extension/tsconfig.json:10` | 加 `resolveJsonModule: true` | 讓 TypeScript 接受 import JSON；Vite 與 bun 本來就支援，`vite.config.ts` 不用改 | `47f3753` |
+| `extension/src/background/pq-signer.ts:3–5` | 三張寫死的 ML-DSA 大小表改為轉出 `@/lib/algorithms` 的表 | F10；既有的 import 路徑不變 | `47f3753` |
+| `extension/src/types/messages.ts:1–5` | `SupportedAlg` 改從 `@/lib/algorithms` 匯入再轉出 | F07；型別與支援清單只寫一次 | `522553d` |
+| `extension/src/background/authenticator.ts:1、34–64` | 刪掉寫死的 `SUPPORTED_ALGORITHMS` 與 `toSupportedAlg()`，`selectAlgorithm()` 改用 `isSupportedAlg()`；補齊函式註解（含 defaultAlgorithm 實際上用不到的說明） | F08 | `522553d` |
+| `extension/src/background/authenticator.ts:75–92` | `credentialPublicKeyCose()` 補齊註解：ML-DSA 與 FN-DSA 都用 AKP，結構不變；程式邏輯沒改 | F09 | `522553d` |
+| `extension/src/background/authenticator.test.ts:4–17、35–97` | `TestSigner` 參數型別改為 `SupportedAlg`，記錄 `generateKeyPair`／`sign` 的呼叫；FN-DSA 回傳比上限短的假簽章（650／1300 bytes）；新增 `extractCredentialPublicKey()` | T2–T5 需要的測試工具；ML-DSA 的假簽章長度不變 | `522553d` |
+| `extension/src/background/authenticator.test.ts:249–340` | T2–T5 | T2–T5 | `522553d` |
+| `extension/src/options/App.tsx:2、33–150` | 選單改由 `ALGORITHM_OPTIONS` 產生（加入 FN-DSA-512、FN-DSA-1024）；補齊 `App()` 的註解 | F07；「待你決定」第 2 點採 A，不改行為 | `3df88e8` |
+| `extension/src/types/README.md:17` | `SupportedAlg` 的說明加入 -54/-55 | 文件 | `1bdf87d` |
+| `codex/PROTOCOL-GUIDE.html` | 第 8 章程式碼地圖加入 `extension/src/lib/algorithms.ts`；第 10 章 Day 6 進度與 Extension 測試數；第 11 章新增 Major type、Options page，共用演算法表的說明加入 Extension | 文件 | `1bdf87d` |
+| `codex/REPORTS.md`、`codex/worklog/day-05.md:7`、本檔開工段落 | Decision Log 第 63 條；Day 5 狀態改為已合併 | 文件 | `bd2790e` |
+
+和計畫的差異：`pq-signer.ts` 改為轉出共用表，原本排在第 2 項，實際提前到第 1 項。因為 T1 要檢查「`pq-signer.ts` 轉出的就是共用表產生的那份」，兩者必須同一個 commit 才會綠燈。
+
+### 測試結果（實作前 → 實作後）
+
+| 階段 | 結果 |
+|---|---|
+| 基準（開工時） | Extension 11 個測試全部通過 |
+| T1 實作前 | 紅燈：`Cannot find module './algorithms'`（0 pass、1 fail、1 error），與開工文件預期一致 |
+| T1 實作後 | Extension 20 個全部通過（T1 共 9 個） |
+| T2–T5 實作前 | 23 pass、7 fail。失敗的是 T2 (a)(b)(c)、T3 兩個、T4 兩個，7 個都是 `NotSupportedError: No supported algorithm in pubKeyCredParams`；T2 (d)、T5 (a)(b) 通過。與開工文件的預期一致 |
+| T2–T5 實作後 | Extension 30 個全部通過 |
+| 最終（每次 commit 前） | Python 103 個、Extension 30 個、前端 10 個全部通過；ruff check、ruff format、Extension typecheck、前端 lint 與 tsc 都通過 |
+| 打包 | `vite build` 輸出到 scratchpad（不動 `extension/dist`）成功；共用表被打包進共用的 chunk，設定頁與 background 都會載入 |
+
+### 破壞檢查
+
+每次只改壞一處，跑 `bun test src`，再還原（還原後與備份逐 byte 比對相同）。
+
+| 改壞的方式 | 預期 | 實際 |
+|---|---|---|
+| 共用表的 -54 公鑰大小 897 → 896 | T1 變紅 | 1 個失敗：T1「FN-DSA-512 (-54) has the sizes from its specification」。和共用表比對的那個測試仍通過，因為兩邊讀同一份檔案；這正是另外用規格書數值檢查的原因 |
+| `SUPPORTED_ALGORITHMS` 拿掉 -55 | T1 變紅 | 4 個失敗：T1 的支援清單、大小表、-55 規格數值、選單選項 |
+| `selectAlgorithm()` 改成選最後一個支援的 | T2 (c)(d) 變紅 | 5 個失敗：T2 (c)(d)、T5 (a)，以及既有的「selects first supported」與「signCount」兩個 |
+| `credentialPublicKeyCose()` 的 kty 7 → 1 | T3 變紅 | T3 兩個失敗 |
+| COSE_Key 的公鑰少放一個 byte | T3 變紅 | T3 兩個失敗 |
+| `getAssertion()` 把簽章補零到 `SIGNATURE_BYTES` | T4 變紅 | T4 兩個失敗 |
+| `selectAlgorithm()` 都不支援時改用 `defaultAlgorithm` | T5 (b) 變紅 | 2 個失敗：T5 (b) 與既有的「throws NotSupportedError」 |
+| `selectAlgorithm()` 只要 `defaultAlgorithm` 有支援就優先選它 | T5 (a) 變紅 | 12 個失敗，包含 T5 (a)(b)（預設值 -48 也會蓋掉 RP 的選擇） |
+
+### 獨立審查
+
+交給沒看過實作過程的子代理，對照核准的 T1–T5 審查測試與 diff（11/24）。子代理實際跑了 `bun test src`（30 pass）、`bun run typecheck`，也另外打包到 scratchpad 確認可行；並依 RFC 8949 自行驗算 T3 的 10 個 bytes，結果正確。
+
+**必須修正（已修正，`f2fd15e`）**
+- `authenticator.test.ts` 的 `TestSigner.generateKeyPair()`、`sign()` 這次有改到，卻缺函式層級的註解（`CLAUDE.md`「語言與註解」）。已補上「做什麼、輸入與輸出」。
+
+**建議與處理方式**
+
+| 建議 | 處理 |
+|---|---|
+| 「依清單順序選第一個支援的」不是 WebAuthn §6.3.2 第 2 步（第 2 步只規定至少要有一個支援，否則回 `NotSupportedError`），而是 Level 2 第 7 步（產生新金鑰時，用清單中第一個支援的） | 已修正程式與測試註解（`f2fd15e`）。開工段落 T2 的依據欄是核准紀錄，保留原文，以這裡的說明為準。預期值不變，不算改弱測試 |
+| T1「大小表比對共用表」對資料本身是同義反覆，抓不到共用表數值錯誤 | 已在測試註解寫明分工（`f2fd15e`）：這個測試只檢查接線，數值錯誤由規格書數值的測試抓。破壞檢查也證實了這一點 |
+| `registryEntry()` 在模組載入時就丟錯，共用表少一筆時整個 background 起不來，連 ML-DSA 都不能用 | 不改。這是刻意的取捨：寧可整個 Extension 起不來，也不要選到沒有大小資訊的演算法；而且 T1 會先擋下來。理由已寫在函式註解 |
+| 從資料夾外 import JSON，只拿 `extension/` 單獨建置會找不到檔案 | 記入待辦，Day 11 在 `extension/README.md` 註明建置需要整個 repo |
+| `extension/README.md:13` 仍寫只支援 ML-DSA | 記入待辦，Day 11 文件同步處理（Day 7 之後 Extension 才真的能產生 Falcon 簽章，那時再改比較準確） |
+| 開工段落 `liboqs-wasm-bridge.ts:171–202` 應為 `163–202` | 已修正 |
+| `messages.ts` 可合成一行 `export type { SupportedAlg } from …` | 不改。實作時試過這個寫法：它不會把 `SupportedAlg` 帶進檔案本身，同檔案其他介面引用時會出現 `Cannot find name 'SupportedAlg'`，所以必須先 `import type` |
+| T5 (a) 與 T3 沒有檢查 storage | 不改。核准的預期結果本來就沒有要求，屬於備註 |
+
+**確認沒問題**：T1–T5 每個子情境都有測試，斷言和核准的一致，沒有被改弱；預期值都是字面值或規格書數值，沒有用 `encodeCbor()` 產生；開工段落列的破壞方式都會讓對應測試變紅；ML-DSA 的行為與大小不變；沒有動到禁止的資料夾，也沒有新增依賴套件；開工與完工段落的行號都對得上。
