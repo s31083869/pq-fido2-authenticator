@@ -1,3 +1,4 @@
+import { isSupportedAlg } from "@/lib/algorithms";
 import { encodeCbor } from "@/lib/cbor";
 import { base64UrlToBytes, bytesToBase64Url } from "@/lib/base64url";
 import { concatBytes, decodeStringBinary, equalBytes } from "@/lib/binary";
@@ -16,7 +17,6 @@ import { LiboqsWasmSigner } from "./liboqs-wasm-signer";
 import { verifyNativeUserVerification } from "./native-uv";
 import { listCredentials, upsertCredential } from "./store";
 
-const SUPPORTED_ALGORITHMS = new Set<number>([-48, -49, -50]);
 const AAGUID = new Uint8Array(16);
 
 export class WebAuthnError extends Error {
@@ -31,13 +31,21 @@ function ensure(condition: unknown, name: string, message: string): asserts cond
   }
 }
 
-function toSupportedAlg(alg: number): SupportedAlg {
-  if (alg === -48 || alg === -49 || alg === -50) {
-    return alg;
-  }
-  throw new WebAuthnError("NotSupportedError", `Unsupported algorithm: ${alg}`);
-}
-
+/**
+ * 從 RP 的 pubKeyCredParams 選出這次註冊要用的簽章演算法。
+ *
+ * 規則（WebAuthn §6.3.2 authenticatorMakeCredential 第 2 步）：依 RP 給的順序（代表 RP 的偏好），
+ * 選第一個 type 為 public-key、而且 Extension 支援的演算法（ML-DSA -48/-49/-50、FN-DSA -54/-55，
+ * 見 @/lib/algorithms）。Extension 只從 RP 的清單裡挑，不會自己加入 RP 沒宣告的演算法（workflow.md F16）。
+ *
+ * 清單是空的時候回傳設定的 defaultAlgorithm；但 makeCredential() 在呼叫前已經擋掉空清單，
+ * 所以目前不會走到這條路（Day 6 待辦：這個設定實際上沒有作用）。
+ *
+ * @param params RP 的 pubKeyCredParams（每筆為 {type, alg}，alg 是 COSE 演算法編號）
+ * @param defaultAlgorithm 設定頁的預設演算法，只在清單為空時使用
+ * @returns 選到的 COSE 演算法編號
+ * @throws WebAuthnError NotSupportedError：清單中沒有任何 Extension 支援的演算法
+ */
 function selectAlgorithm(
   params: Array<{ type: "public-key"; alg: number }> | undefined,
   defaultAlgorithm: SupportedAlg
@@ -47,8 +55,8 @@ function selectAlgorithm(
   }
 
   for (const param of params) {
-    if (param.type === "public-key" && SUPPORTED_ALGORITHMS.has(param.alg)) {
-      return toSupportedAlg(param.alg);
+    if (param.type === "public-key" && isSupportedAlg(param.alg)) {
+      return param.alg;
     }
   }
 
@@ -64,10 +72,19 @@ function uint32ToBytes(value: number): Uint8Array {
   ]);
 }
 
+/**
+ * 把公鑰包成 COSE_Key，放進 authData 的 credentialPublicKey（WebAuthn §6.5.1 Attested Credential Data）。
+ *
+ * ML-DSA 與 FN-DSA 都用 AKP（Algorithm Key Pair，kty = 7，RFC 9964）格式：
+ * {1: 7（kty）, 3: alg（COSE 演算法編號）, -1: 公鑰原始 bytes}。FN-DSA 沿用同一個結構（draft-ietf-cose-falcon），
+ * 所以加入 -54/-55 不需要改結構（workflow.md F09）。鍵依 1、3、-1 的順序插入，與 CTAP2 正規 CBOR 的排序相同。
+ *
+ * @param algorithm 這張憑證的 COSE 演算法編號
+ * @param publicKey 簽章器產生的公鑰（長度見 PUBLIC_KEY_BYTES）
+ * @returns CBOR 編碼後的 COSE_Key
+ */
 function credentialPublicKeyCose(algorithm: SupportedAlg, publicKey: Uint8Array): Uint8Array {
   const map = new Map<number, number | string | Uint8Array>();
-  // ML-DSA COSE representation uses AKP key type.
-  // 1: kty=7 (AKP), 3: alg, -1: pub
   map.set(1, 7);
   map.set(3, algorithm);
   map.set(-1, publicKey);

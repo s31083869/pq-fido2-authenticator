@@ -1,4 +1,8 @@
-export type SupportedAlg = -48 | -49 | -50;
+// Extension 支援的 COSE 演算法編號（ML-DSA -48/-49/-50、FN-DSA -54/-55）。
+// 定義在 @/lib/algorithms，由支援清單推出，並由測試比對共用演算法表（決策 D3）；這裡轉出，讓既有的 import 不用改。
+import type { SupportedAlg } from "@/lib/algorithms";
+
+export type { SupportedAlg };
 
 export type BinaryLikeString = string;
 
