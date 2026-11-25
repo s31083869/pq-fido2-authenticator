@@ -1376,11 +1376,11 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <div class="two-col">
     <div class="card">
       <h3>已完成</h3>
-      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 和 Extension 兩條路線都能用；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 103 個（含跨元件的整合測試 <code>tests/integration/</code>）、Extension 30 個、前端 10 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。Day 3 起 RP 宣告並接受 FN-DSA（-54/-55），註冊時也會檢查公鑰的 kty 與長度。Day 4 補上 Python authenticator 選用 FN-DSA 的測試，註冊時改為先檢查演算法、再做使用者驗證。Day 5 加入 authenticator ↔ RP 的整合測試，前端選單加入 FN-DSA，並改為只在 RP 的清單內重排；FN-DSA-512、FN-DSA-1024 已用真的 Windows Hello 跑通 Python bridge 路線的註冊與登入。Day 6 Extension 的支援清單、型別與金鑰／簽章大小改從共用表讀取並加入 FN-DSA，會依 RP 的清單選用 -54/-55；FN-DSA 簽章長度不固定，原封不動回傳。</p>
+      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 路線都能用；Extension 路線在 Day 7 之前只有 ML-DSA-44 能用（WASM 預設 64 KB 的堆疊不夠 ML-DSA-65／87 產生金鑰，Day 7 加大到 1 MB 後修正）；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 103 個（含跨元件的整合測試 <code>tests/integration/</code>）、Extension 48 個、KAT 2 個（<code>tests/kat/</code>，各 100 筆）、前端 10 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。Day 3 起 RP 宣告並接受 FN-DSA（-54/-55），註冊時也會檢查公鑰的 kty 與長度。Day 4 補上 Python authenticator 選用 FN-DSA 的測試，註冊時改為先檢查演算法、再做使用者驗證。Day 5 加入 authenticator ↔ RP 的整合測試，前端選單加入 FN-DSA，並改為只在 RP 的清單內重排；FN-DSA-512、FN-DSA-1024 已用真的 Windows Hello 跑通 Python bridge 路線的註冊與登入。Day 6 Extension 的支援清單、型別與金鑰／簽章大小改從共用表讀取並加入 FN-DSA，會依 RP 的清單選用 -54/-55；FN-DSA 簽章長度不固定，原封不動回傳。Day 7 WASM 編進 Falcon-512／1024：bun 測試直接載入真的 <code>pq_bridge.wasm</code>；WASM 產生的簽章交給 RP 的 Python liboqs 驗章成功（兩份分別編譯的實作互相驗證）；WASM 版 Falcon 與官方第三輪 KAT 各 100 筆逐 byte 一致。</p>
     </div>
     <div class="card">
       <h3>進行中</h3>
-      <p>FN-DSA-512 與 FN-DSA-1024 的整合，依照 12 天的計畫進行，詳見 <code>codex/FN-DSA-PLAN.md</code>，每天的細節記在 <code>codex/worklog/</code>。Extension 已能選用 FN-DSA，但 WASM 要到 Day 7 才編進 Falcon，Day 8 才開放本機 RP，在那之前 Extension 還無法實際產生 Falcon 簽章。</p>
+      <p>FN-DSA-512 與 FN-DSA-1024 的整合，依照 12 天的計畫進行，詳見 <code>codex/FN-DSA-PLAN.md</code>，每天的細節記在 <code>codex/worklog/</code>。Extension 已能產生 Falcon 金鑰與簽章，但目前只攔截 demo.yubico.com（它不宣告 FN-DSA）；Day 8 開放本機 RP 後，才能在瀏覽器裡實際用 FN-DSA 註冊與登入。</p>
     </div>
   </div>
   <div class="prose"><h3>已知限制</h3></div>
@@ -1474,6 +1474,8 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
       <div class="term"><dt>Hedged signing</dt><dd>每次簽章都加入新的隨機數，同一則訊息每次簽出不同的簽章；ML-DSA 預設採用。</dd></div>
       <div class="term"><dt>Context string（ctx）</dt><dd>FIPS 204 加入的簽章參數，最長 255 bytes；RFC 9964 規定在 COSE 中必須為空字串。</dd></div>
       <div class="term"><dt>NIST 安全等級</dt><dd>1、2、3、5 級，分別對應破解 AES-128、找出 SHA-256 碰撞、破解 AES-192、破解 AES-256 所需的計算量。</dd></div>
+      <div class="term"><dt>DRBG（決定性亂數產生器）</dt><dd>Deterministic Random Bit Generator：給同一顆種子，永遠產生同一串「看起來隨機」的 bytes。NIST 的 KAT 用 AES-256 CTR DRBG 取代真的亂數，讓金鑰與簽章可以和官方答案逐 byte 比對（本專案 <code>tests/kat/nist-drbg.ts</code>）。只能用在測試。</dd></div>
+      <div class="term"><dt>堆疊（stack）</dt><dd>函式執行時放區域變數與暫存陣列的記憶體。WASM 的堆疊放在線性記憶體裡、大小固定（Emscripten 預設 64 KB），用超過會寫到範圍外、破壞其他資料；本專案編譯時設為 1 MB。</dd></div>
       <div class="term"><dt>KAT（Known Answer Test）</dt><dd>用固定輸入和官方公布的預期輸出，驗證實作是否正確的測試。</dd></div>
       <div class="term"><dt>ES256</dt><dd>ECDSA 搭配 P-256 曲線與 SHA-256，WebAuthn 最常見的傳統演算法（COSE -7）。</dd></div>
     </dl>
