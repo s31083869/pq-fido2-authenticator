@@ -84,6 +84,7 @@ uv run ruff check authenticator rp_server shared tests
 uv run ruff format --check authenticator rp_server shared tests
 cd extension && bun test src && bun run typecheck
 cd frontend && bun test src && bun run lint && bunx tsc --noEmit
+bun test tests/kat
 ```
 
 新增 `tests/` 資料夾後，要同步加進 `pyproject.toml` 的 `testpaths` 與上面的 ruff 路徑。
