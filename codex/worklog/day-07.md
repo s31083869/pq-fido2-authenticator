@@ -188,7 +188,7 @@ ML-DSA 的 WASM 版 KAT 今天不做：NIST 第三輪的 Dilithium KAT 與正式
 - （獨立審查）Extension 的 bridge 是單例，WASM 一旦 trap（例如越界），同一個實例之後的呼叫都會壞；可考慮遇到 `RuntimeError` 時重建實例。Day 10 評估。
 - （獨立審查）亂數來源的防呆：可改成名稱更明顯的選項，或加測試確認 `loadFromExtensionResource()` 每次產生的金鑰不同。Day 10 評估。
 - （獨立審查）共用演算法表 `shared/pq-algorithms.json` 的 `description` 把 FN-DSA 的簽章上限 752／1462 也歸給 Falcon v1.2 第 3.11 節；實際來自參考實作 `falcon.h` 的 `FALCON_SIG_COMPRESSED_MAXSIZE`。Day 11 文件同步時修正。
-- （獨立審查，待使用者決定）`CLAUDE.md` 必跑清單：`bun test tests/kat` 要在專案根目錄執行，與上面 `cd extension`、`cd frontend` 兩行的寫法容易混淆；「環境注意事項」寫 WASM 用 `extension/emsdk`，實際用的是 `C:\emsdk`（emcc 5.0.7，可重現目前的 `.wasm`）。兩處都要改 `CLAUDE.md`，需要使用者同意。
+- （獨立審查，待使用者決定）`CLAUDE.md` 必跑清單：`bun test tests/kat` 要在專案根目錄執行，與上面 `cd extension`、`cd frontend` 兩行的寫法容易混淆；「環境注意事項」寫 WASM 用 `extension/emsdk`，實際用的是 `C:\emsdk`（emcc 5.0.7，可重現目前的 `.wasm`）。兩處都要改 `CLAUDE.md`，需要使用者同意。→ 11/25 使用者同意兩處都修改，已完成：必跑清單那一行加註「在專案根目錄執行」，「環境注意事項」改為實際使用 `C:\emsdk` 的 emcc 5.0.7。
 - ML-DSA 的 WASM 版 KAT（NIST ACVP 測試向量）排在 Day 10（見測試案例下方說明）。原生 liboqs（Python 端）的 KAT 納入專案也維持 Day 10。
 - 沿用 Day 1–6 的待辦清單。
 
@@ -326,11 +326,11 @@ ML-DSA 的 WASM 版 KAT 今天不做：NIST 第三輪的 Dilithium KAT 與正式
 | T4 沒有區分 C 端回 -1 或 -2 | 大小函式的錯誤訊息改為帶出代碼，T4 確認是 `code=-1`（`2641264`），屬於加嚴 |
 | 752／1462 的依據：規格書第 3.11 節列的是補滿格式的大小，不補滿格式的上限來自參考實作 `falcon.h` 的 `FALCON_SIG_COMPRESSED_MAXSIZE` | 測試註解已補上參考實作來源（`2641264`）；共用表 `description` 也引用第 3.11 節，記入待辦，Day 11 文件同步時修正 |
 | 工作紀錄行號（`setup-liboqs-emscripten.sh` 修改後位移、`build-liboqs-wasm.sh` 範圍） | 完工段落已用新行號，並在「和開工文件的差異」說明 |
-| `CLAUDE.md` 必跑清單的 `bun test tests/kat` 排在 `cd frontend && …` 之後，照順序在同一個 shell 執行會在 frontend 目錄下跑 | 修改 `CLAUDE.md` 需要使用者同意，記入待辦並詢問使用者 |
+| `CLAUDE.md` 必跑清單的 `bun test tests/kat` 排在 `cd frontend && …` 之後，照順序在同一個 shell 執行會在 frontend 目錄下跑 | 使用者同意後修改：那一行加註「在專案根目錄執行」 |
 | `LiboqsWasmBridge`、`NistCtrDrbg` 缺類別註解；`fromBytes()` 的 `@throws` 不完整；`pyproject.toml` 註解沒提 `tests/kat` | 都已補（`2641264`） |
 | 亂數來源可改成名稱更明顯的選項，或加測試確認 `loadFromExtensionResource()` 不用決定性亂數 | 不改。子代理確認實際流程只有 `liboqs-wasm-signer.ts:10` 呼叫 `loadFromExtensionResource()`，它不轉傳亂數參數；`fromBytes()` 的註解已明寫只有 KAT 測試能傳。記入待辦，Day 10 測試補強時再評估 |
 | Extension 的 bridge 是單例，WASM 一旦 trap，同一個實例之後都會壞 | 記入待辦（不屬於今天的範圍） |
-| 實際工具鏈是 `C:\emsdk` 的 emcc 5.0.7，`CLAUDE.md`「環境注意事項」寫的是 `extension/emsdk` | 記入待辦並詢問使用者（改 `CLAUDE.md` 需要同意） |
+| 實際工具鏈是 `C:\emsdk` 的 emcc 5.0.7，`CLAUDE.md`「環境注意事項」寫的是 `extension/emsdk` | 使用者同意後修改「環境注意事項」為實際路徑 |
 | 完工段落要說明 commit 安排、`918ef7f` 單獨看 CI 會紅 | 已寫在「和開工文件的差異」 |
 | 名詞表加 WASI | 已加（`2641264`） |
 
