@@ -8,6 +8,20 @@
 #define EMSCRIPTEN_KEEPALIVE __attribute__((used))
 #endif
 
+/*
+ * 把 COSE 演算法編號翻成 liboqs 的演算法名稱，供 OQS_SIG_new() 建立簽章器。
+ *
+ * 對應必須和共用演算法表 shared/pq-algorithms.json 的 oqsName 相同（決策 D3）；C 不能讀 JSON，
+ * 一致性由 extension/src/background/liboqs-wasm-bridge.test.ts 的 T1 檢查（WASM 回報的大小等於共用表）。
+ * -48/-49/-50：ML-DSA-44/65/87（RFC 9964、FIPS 204）。
+ * -54/-55：FN-DSA-512/1024 的暫定 COSE 編號（決策 D1），使用 Falcon 第三輪規格 v1.2 的
+ *          不補滿格式 Falcon-512/1024（決策 D2），不是 Falcon-padded-512/1024。
+ *
+ * 輸入：COSE 演算法編號。
+ * 輸出：liboqs 名稱；不支援的編號回傳 NULL，呼叫端再回傳 -1。
+ * 注意：名稱對應到的演算法還必須編進 liboqs.a（setup-liboqs-emscripten.sh 的 LIBOQS_MINIMAL_BUILD），
+ *       否則 OQS_SIG_new() 回傳 NULL，呼叫端回傳 -2。
+ */
 static const char *pq_alg_name(int32_t cose_alg) {
     switch (cose_alg) {
         case -48:
@@ -16,6 +30,10 @@ static const char *pq_alg_name(int32_t cose_alg) {
             return "ML-DSA-65";
         case -50:
             return "ML-DSA-87";
+        case -54:
+            return "Falcon-512";
+        case -55:
+            return "Falcon-1024";
         default:
             return NULL;
     }

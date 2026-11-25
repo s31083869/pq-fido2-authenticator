@@ -46,9 +46,37 @@ function copyFromMemory(memory: WebAssembly.Memory, ptr: number, length: number)
   return copy;
 }
 
+/**
+ * 亂數來源：把 `out` 整段填滿亂數 bytes。
+ *
+ * liboqs 產生金鑰與簽章時需要的亂數，在 WASM 裡會經由 WASI 的 random_get 交給這個函式。
+ */
+export type RandomBytesSource = (out: Uint8Array) => void;
+
+/**
+ * 預設的亂數來源：瀏覽器與 bun 都有的 Web Crypto（CSPRNG）。
+ *
+ * getRandomValues() 一次最多填 65,536 bytes，所以分段填；liboqs 每次要的亂數遠小於這個上限。
+ */
+const systemRandomBytes: RandomBytesSource = (out) => {
+  for (let offset = 0; offset < out.length; offset += 65_536) {
+    crypto.getRandomValues(out.subarray(offset, Math.min(offset + 65_536, out.length)));
+  }
+};
+
 export class LiboqsWasmBridge {
   private constructor(private readonly e: LiboqsWasmExports) {}
 
+  /**
+   * 在 Extension 裡載入打包好的 pq_bridge.wasm（manifest 的 web_accessible 資源）。
+   *
+   * 做什麼：用 chrome.runtime.getURL() 取得資源網址、fetch 下來，再交給 fromBytes() 建立 bridge。
+   * 只能在 Extension 環境呼叫；測試環境沒有 chrome，請直接用 fromBytes()。
+   *
+   * @param path 相對於 Extension 根目錄的 WASM 路徑
+   * @returns 可以呼叫 liboqs 的 bridge，亂數一律用系統 CSPRNG
+   * @throws Error chrome.runtime 不存在，或 fetch 失敗
+   */
   static async loadFromExtensionResource(path = "wasm/pq_bridge.wasm"): Promise<LiboqsWasmBridge> {
     const runtime = globalThis.chrome?.runtime;
     if (!runtime?.getURL) {
@@ -60,8 +88,27 @@ export class LiboqsWasmBridge {
       throw new Error(`[liboqs-wasm] unable to fetch ${path} (${response.status})`);
     }
 
-    const wasmBytes = await response.arrayBuffer();
+    return LiboqsWasmBridge.fromBytes(await response.arrayBuffer());
+  }
 
+  /**
+   * 從 WASM 檔案的 bytes 建立 bridge。
+   *
+   * 為什麼拆出來：bun 測試沒有 chrome.runtime，要直接讀 public/wasm/pq_bridge.wasm 才能測到真的 liboqs（Day 7）。
+   *
+   * pq_bridge.wasm 以 STANDALONE_WASM 編譯，需要少數 WASI 匯入：random_get 供應亂數，
+   * fd_write 等輸出函式在 Extension 裡不需要，直接忽略。
+   *
+   * @param wasmBytes pq_bridge.wasm 的內容
+   * @param randomBytes 亂數來源。**只有 KAT 測試會傳入決定性的 NIST DRBG**，讓輸出可以和官方答案逐 byte 比對；
+   *   Extension 從不傳這個參數，一律使用系統 CSPRNG。傳入可預測的亂數會讓私鑰與簽章可被重現，絕不能用在實際流程
+   * @returns 可以呼叫 liboqs 的 bridge
+   * @throws Error WASM 缺少必要的匯出函式
+   */
+  static async fromBytes(
+    wasmBytes: BufferSource,
+    randomBytes: RandomBytesSource = systemRandomBytes
+  ): Promise<LiboqsWasmBridge> {
     let wasmExports: LiboqsWasmExports | undefined;
     const getMemory = (): WebAssembly.Memory => {
       if (!wasmExports) {
@@ -73,16 +120,16 @@ export class LiboqsWasmBridge {
     const imports = {
       env: {
         emscripten_notify_memory_growth: (_memoryIndex: number): void => {
-          // no-op: browser runtime does not need extra handling on growth notifications
+          // 記憶體擴充通知：瀏覽器端不需要額外處理（每次存取都重新取 memory.buffer）
         }
       },
       wasi_snapshot_preview1: {
         proc_exit: (code: number): never => {
           throw new Error(`[liboqs-wasm] wasi proc_exit called with code=${code}`);
         },
+        // liboqs 的 OQS_randombytes() 在 WASM 裡最後會呼叫這裡；每次呼叫填滿 [buf, buf + bufLen)
         random_get: (buf: number, bufLen: number): number => {
-          const view = new Uint8Array(getMemory().buffer, buf, bufLen);
-          crypto.getRandomValues(view);
+          randomBytes(new Uint8Array(getMemory().buffer, buf, bufLen));
           return 0;
         },
         fd_close: (_fd: number): number => {
@@ -96,21 +143,21 @@ export class LiboqsWasmBridge {
         ): number => {
           return 0;
         },
-        fd_write: (fd: number, _iovs: number, _iovsLen: number, nwritten: number): number => {
-          if (fd === 1 || fd === 2) {
-            // stdout/stderr output is intentionally ignored in extension runtime.
-          }
+        // stdout／stderr 的輸出在 Extension 裡刻意忽略，只回報寫入 0 bytes
+        fd_write: (_fd: number, _iovs: number, _iovsLen: number, nwritten: number): number => {
           new DataView(getMemory().buffer).setUint32(nwritten, 0, true);
           return 0;
         }
       }
     };
 
-    const module = await WebAssembly.instantiate(wasmBytes, imports);
-    assertExports(module.instance.exports);
-    wasmExports = module.instance.exports;
+    // 先 compile 再 instantiate：明確拿到 Instance，型別不受 instantiate() 多載的影響
+    const module = await WebAssembly.compile(wasmBytes);
+    const instance = await WebAssembly.instantiate(module, imports);
+    assertExports(instance.exports);
+    wasmExports = instance.exports;
 
-    return new LiboqsWasmBridge(module.instance.exports);
+    return new LiboqsWasmBridge(instance.exports);
   }
 
   publicKeyBytes(alg: SupportedAlg): number {
