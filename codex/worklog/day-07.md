@@ -4,7 +4,7 @@
 |---|---|
 | 日期 | 2026-11-25（計畫原訂 11/22，已順延） |
 | 分支 | `day-07`（從 `origin/main` 2da5682 開出） |
-| 狀態 | 開工：「待你決定」五點都已決定，測試案例 T1–T6 已核准（11/25），實作中 |
+| 狀態 | 完工：T1–T6、破壞檢查與依獨立審查的修正都已完成；尚未 push，待使用者看過審查結果再開 PR |
 
 ---
 
@@ -130,6 +130,7 @@ T5 讓 WASM 產生金鑰並簽章，再交給 RP 用的 Python liboqs 驗章（�
 | `.github/workflows/ci.yml`、`CLAUDE.md` | 必跑清單加入 `bun test tests/kat`（改 `CLAUDE.md` 需你同意，見「待你決定」第 5 點） | 3 |
 | `extension/wasm/pq_bridge.c:11–22` | `pq_alg_name()` 加入 -54、-55；補齊這個函式的註解 | 4 |
 | `extension/scripts/setup-liboqs-emscripten.sh:10–11` | `LIBOQS_REF` 預設改為 `33815beb2ac404cba36ecf713f9fd5f1d868763a`；`LIBOQS_MINIMAL_BUILD` 加入 `SIG_falcon_512;SIG_falcon_1024` | 4 |
+| `extension/scripts/build-liboqs-wasm.sh:77–85` | （11/25 追加）`emcc` 加上 `-s STACK_SIZE=1048576`，修正 ML-DSA-65／87 與 FN-DSA-1024 的堆疊越界 | 4 |
 | `extension/public/wasm/pq_bridge.wasm` | 重建（二進位檔） | 4 |
 | `extension/scripts/README.md`、`extension/wasm/README.md`、`extension/public/wasm/README.md` | 編譯清單、對應表、測試會直接讀這個檔案 | 5 |
 | `codex/PROTOCOL-GUIDE.html` | Day 7 進度、測試數；KAT 已在名詞表，補上「DRBG」 | 5 |
@@ -183,6 +184,11 @@ ML-DSA 的 WASM 版 KAT 今天不做：NIST 第三輪的 Dilithium KAT 與正式
 
 ### 待辦清單（中途發現、今天不處理）
 
+- （實作中發現）Day 7 之前 Extension 路線實際上只能用 ML-DSA-44（堆疊越界，已修正）。Day 9 的 Extension 端到端清單要加上 ML-DSA-65（RP 預設第一個）的註冊與登入，確認在瀏覽器裡也正常。
+- （獨立審查）Extension 的 bridge 是單例，WASM 一旦 trap（例如越界），同一個實例之後的呼叫都會壞；可考慮遇到 `RuntimeError` 時重建實例。Day 10 評估。
+- （獨立審查）亂數來源的防呆：可改成名稱更明顯的選項，或加測試確認 `loadFromExtensionResource()` 每次產生的金鑰不同。Day 10 評估。
+- （獨立審查）共用演算法表 `shared/pq-algorithms.json` 的 `description` 把 FN-DSA 的簽章上限 752／1462 也歸給 Falcon v1.2 第 3.11 節；實際來自參考實作 `falcon.h` 的 `FALCON_SIG_COMPRESSED_MAXSIZE`。Day 11 文件同步時修正。
+- （獨立審查，待使用者決定）`CLAUDE.md` 必跑清單：`bun test tests/kat` 要在專案根目錄執行，與上面 `cd extension`、`cd frontend` 兩行的寫法容易混淆；「環境注意事項」寫 WASM 用 `extension/emsdk`，實際用的是 `C:\emsdk`（emcc 5.0.7，可重現目前的 `.wasm`）。兩處都要改 `CLAUDE.md`，需要使用者同意。
 - ML-DSA 的 WASM 版 KAT（NIST ACVP 測試向量）排在 Day 10（見測試案例下方說明）。原生 liboqs（Python 端）的 KAT 納入專案也維持 Day 10。
 - 沿用 Day 1–6 的待辦清單。
 
@@ -216,3 +222,116 @@ ML-DSA 的 WASM 版 KAT 今天不做：NIST 第三輪的 Dilithium KAT 與正式
 - 使用者重述（11/25）：問題 2「如果沒先跑那一次，重建後全部變綠，無法分辨是真的修好了，還是測試根本什麼都沒測到」；問題 3「666 不是上限，而是補滿格式（`Falcon-padded-512`）的固定簽章長度，T1 要防的是選錯 Falcon 的格式」。兩句都引用 Claude 的說明原文；重點正確，視為已對上。
 
 - 使用者核准測試案例 T1–T6（11/25）。
+
+### 實作中的發現：現有的 `pq_bridge.wasm` 無法使用 ML-DSA-65／87（11/25）
+
+寫好 T1–T4、用**目前的** `.wasm` 跑紅燈時，預期 ML-DSA 全綠，實際上 ML-DSA-65、ML-DSA-87 的 T2、T3a 失敗：`RuntimeError: Out of bounds memory access`（發生在 `pq_generate_keypair`），之後同一個 WASM 實例的呼叫也跟著出現 `Out of bounds call_indirect`。
+
+診斷（只輸出到 scratchpad，Emscripten 快取也放 scratchpad，沒有寫入 `extension/public/wasm` 與 `.deps`）：
+
+| 測試用的 WASM | ML-DSA-44 | ML-DSA-65 | ML-DSA-87 |
+|---|---|---|---|
+| git 裡的 `pq_bridge.wasm`（每個演算法各用全新的實例） | 正常 | 越界 | 越界 |
+| 用 `C:\emsdk` 的 emcc 5.0.7、和 `build-liboqs-wasm.sh` 相同的參數重編 | 正常 | 越界 | 越界 |
+| 同上，只多加 `-s STACK_SIZE=1048576`（1 MB） | 正常 | 正常 | 正常 |
+
+- 第二列重編出來的檔案和 git 裡的 `pq_bridge.wasm` **逐 byte 相同**：證明現有的 WASM 就是用 `C:\emsdk` 這套工具鏈、照目前的腳本編出來的，建置可以重現。
+- 原因：Emscripten 預設的堆疊只有 64 KB（放在 WASM 的線性記憶體裡），ML-DSA-65／87 產生金鑰時的暫存陣列超過這個大小，寫到堆疊範圍之外，破壞了其他資料。ML-DSA-44 用得少，所以正常。這與瀏覽器無關，Chrome 裡也一樣。
+- 影響：Day 7 之前，Extension 實際上只能用 ML-DSA-44；RP 預設把 ML-DSA-65（-49）排第一，Extension 會選 -49，然後在產生金鑰時失敗。這是 Day 7 之前就存在的問題，由今天新增的「真的 WASM 測試」第一次抓到。
+- 測試案例的預期結果沒有改，改的是「實作前預期」那一欄的判斷：ML-DSA-65／87 的 T2、T3a 在重建前是紅燈。
+- 與今天的目標直接相關：FN-DSA-1024 的簽章函式在堆疊上放了 72 KB 的暫存區（`.deps/liboqs-emscripten-src/src/sig/falcon/pqclean_falcon-1024_clean/pqclean.c:126` 的 `uint8_t b[72 * 1024]`），也超過 64 KB。不加大堆疊，今天加入的 FN-DSA-1024 一樣會越界。
+- 使用者決定（11/25）：**今天加大堆疊**。`build-liboqs-wasm.sh` 加上 `-s STACK_SIZE=1048576`（1 MB），與 Falcon 一起重建；T2、T3a 的 ML-DSA-65／87 由紅轉綠，就是這個修正的證據。
+
+---
+
+## 完工
+
+### 實際修改
+
+| 檔案:行號範圍 | 改了什麼 | 目的 | commit |
+|---|---|---|---|
+| `extension/wasm/pq_bridge.c:11–36` | `pq_alg_name()` 加入 -54 → `Falcon-512`、-55 → `Falcon-1024`；補齊函式註解 | F11；決策 D1、D2 | `b5cfbb4` |
+| `extension/scripts/setup-liboqs-emscripten.sh:10–15` | `LIBOQS_REF` 預設由 `main` 改為 `33815beb2ac404cba36ecf713f9fd5f1d868763a`；`LIBOQS_MINIMAL_BUILD` 加入 `SIG_falcon_512;SIG_falcon_1024` | F12；決策 D4 | `b5cfbb4` |
+| `extension/scripts/build-liboqs-wasm.sh:77–89` | `emcc` 加上 `-s STACK_SIZE=1048576`（註解在 77–79，旗標在 86） | 修正 ML-DSA-65／87 與 FN-DSA-1024 的堆疊越界（使用者 11/25 同意） | `b5cfbb4` |
+| `extension/public/wasm/pq_bridge.wasm` | 重建：94,891 → 251,132 bytes，SHA-256 `4dea651c…68a2`；工具鏈 `C:\emsdk` emcc 5.0.7 | F11、F12 | `b5cfbb4` |
+| `extension/src/background/liboqs-wasm-bridge.ts:49–167` | 新增 `RandomBytesSource`、`systemRandomBytes`、`fromBytes(wasmBytes, randomBytes)`；`loadFromExtensionResource()` 改為 fetch 後呼叫 `fromBytes()`；改用 `compile` + `instantiate(module)` | bun 測試能載入真的 WASM；KAT 能注入 DRBG；Extension 行為不變 | `b5cfbb4` |
+| `extension/src/background/liboqs-wasm-bridge.ts:67–220` | 類別註解；`fromBytes()` 補 `CompileError`／`LinkError`；三個大小函式的錯誤訊息帶出 C 端代碼（`code=-1`／`-2`）並補齊註解 | 依獨立審查；T4 能區分 -1 與 -2 | `2641264` |
+| `extension/src/background/liboqs-wasm-bridge.test.ts:1–93`（新增） | T1–T4；依審查加嚴 T2（第二把私鑰長度）、T4（`code=-1`），T1 註明 752／1462 的參考實作來源 | T1–T4 | `b5cfbb4`、`2641264` |
+| `extension/scripts/wasm-sign-vectors.ts:1–58`（新增） | 用 WASM 對 5 個演算法產生金鑰並簽固定訊息，輸出 JSON | T5 | `918ef7f` |
+| `tests/integration/test_wasm_cross_verify.py:1–87`（新增） | T5 | T5；`CLAUDE.md`「真實密碼學」 | `918ef7f` |
+| `tests/kat/compute_falcon_kat_hashes.py:1–134`（新增） | 從官方 zip 算出雜湊表；確認拆出的 100 筆能逐 byte 組回原檔 | T6 的預期值來源 | `4b7d5a8` |
+| `tests/kat/falcon-round3-kat.json`（新增，47 KB） | 官方 zip 與兩個 `.rsp` 的 SHA-256、每筆的 `seedMsgSha256` 與 `entrySha256` | T6 | `4b7d5a8` |
+| `tests/kat/nist-drbg.ts:1–104`（新增） | NIST AES-256 CTR DRBG（審查後補類別註解） | T6 | `4b7d5a8`、`2641264` |
+| `tests/kat/wasm-falcon-kat.test.ts:1–140`（新增） | T6 | T6；計畫書 Day 8 的 KAT | `4b7d5a8` |
+| `.github/workflows/ci.yml:45–50、88–93` | Python 工作加 `oven-sh/setup-bun`；Extension 工作加「KAT（WASM 版 Falcon）」步驟（從根目錄執行 `bun test tests/kat`） | 「待你決定」第 3、5 點 | `4b7d5a8` |
+| `CLAUDE.md:87` | 必跑清單加一行 `bun test tests/kat` | 「待你決定」第 5 點（使用者同意修改 `CLAUDE.md`） | `4b7d5a8` |
+| `pyproject.toml:31–35` | `testpaths` 加入 `tests/kat`；審查後補註解 | `CLAUDE.md`「新增 `tests/` 資料夾後要同步」 | `4b7d5a8`、`2641264` |
+| `extension/tsconfig.json:17` | `include` 加入 `scripts/wasm-sign-vectors.ts` 與 `../tests/kat` | 讓新的 TypeScript 也經過型別檢查 | `4b7d5a8` |
+| `codex/PROTOCOL-GUIDE.html` | 更正第 10 章「Extension 路線 ML-DSA-65／87 也能用」；Day 7 進度與測試數（審查後更正 Python 103 → 108）；第 11 章新增 DRBG、堆疊、WASI | 文件 | `b52e9d8`、`2641264` |
+| `extension/scripts/README.md`、`extension/wasm/README.md`、`extension/public/wasm/README.md` | 編譯清單、固定版本、堆疊、對應表、直接讀 WASM 的測試 | 文件 | `b52e9d8` |
+| 本檔開工段落、`codex/worklog/day-06.md:7` | 開工文件；Day 6 狀態改為已合併 | 文件 | `40bea82` |
+
+和開工文件的差異：
+- 第 1–3 項的測試都在重建**之前**寫好並跑過紅燈，但守則規定「失敗的測試不 commit」，所以實際 commit 的順序改成：重建與 T1–T4 一起（`b5cfbb4`），再 T5（`918ef7f`），再 KAT（`4b7d5a8`），每個 commit 都是全綠。
+- CI 的兩個修改都放在 KAT 那個 commit（同一個檔案，不能拆成兩個 commit）。所以單看 `918ef7f`，CI 的 Python 工作會因為沒有 bun 而失敗；PR 的 CI 只跑最新的 commit，不影響合併。
+- `build-liboqs-wasm.sh` 的 `STACK_SIZE` 是實作中追加的（見「實作中的發現」）。
+- 開工段落引用的 `setup-liboqs-emscripten.sh:57–58`（`git fetch`／`git checkout`）、`:60–64`（刪除建置目錄）是修改前的行號，現在是 `:61–62`、`:64–68`；預計修改表寫的 `build-liboqs-wasm.sh:77–85` 實際為 `:77–89`。
+
+### 測試結果（實作前 → 實作後）
+
+| 階段 | 結果 |
+|---|---|
+| 基準（開工時） | Python 103、Extension 30、前端 10，全部通過 |
+| T1–T4 實作前（目前的 `.wasm`） | 7 pass、11 fail。FN-DSA 的 T1、T2、T3b 失敗：`invalid public key size for alg=-54／-55`（C 端回 -1）。**另外 ML-DSA-65／87 的 T2 與三個 T3a 失敗**：`Out of bounds memory access`／`Out of bounds call_indirect`（見「實作中的發現」）。T4 通過 |
+| T5 實作前（目前的 `.wasm`，重建前執行） | 1 pass（ML-DSA-44）、4 fail：-49、-50 越界（`Out of bounds memory access`），-54、-55 產生不了金鑰（`invalid public key size`） |
+| T6 實作前（目前的 `.wasm`，重建前執行） | 2 fail，都在 (b) 的第 0 筆（`Expected: -1, Received: 0`）；(a) 已通過，證明 DRBG 產生的 100 筆 seed／msg 都和官方相同 |
+| 重建後 | Extension 48 個（原 30 + T1–T4 共 18）全部通過；T5 5 個全部通過；T6 2 個全部通過（約 7 秒） |
+| 最終（每次 commit 前） | Python 108、Extension 48、前端 10、KAT 2，全部通過；ruff、Extension typecheck、前端 lint 與 tsc 都通過 |
+
+額外的交叉印證：官方檔案第 0 筆的雜湊（Falcon-512 `da27fe8a…`、Falcon-1024 `e699d88e…`）等於 liboqs `tests/KATs/sig/kats.json` 的 `single` 值，證明我們拆「一筆」的方式和 liboqs 相同。
+
+### 破壞檢查
+
+壞掉的版本都從 scratchpad 的 C 檔副本編譯，不改 repo 裡的 `pq_bridge.c`；每次做完都把正確的 `pq_bridge.wasm` 複製回來，並逐 byte 比對確認還原。
+
+| 改壞的方式 | 預期 | 實際 |
+|---|---|---|
+| `pq_alg_name()` 把 -54、-55 對調 | T1 變紅 | T1、T2、T3b 的 FN-DSA 共 6 個失敗；T6 兩個都失敗 |
+| `pq_alg_name()` 把 -54 對應到 `Falcon-padded-512`（另外在 scratchpad 編一份含 `SIG_falcon_padded_512` 的 `liboqs.a`，`.deps` 裡的不動，事後核對雜湊相同） | T1（666 ≠ 752）、T3b 變紅 | T1 與 T3b 的 FN-DSA-512 失敗；T6 Falcon-512 失敗。**T2 與 T5 全部通過**：補滿格式的金鑰大小相同，簽章也能被 `Falcon-512` 驗過，所以只有大小、長度、KAT 抓得到，與對齊時問題 3 的說明一致 |
+| DRBG 的計數器改成從第 14 個 byte 開始遞增 | T6 (a) 變紅 | T6 兩個都失敗，失敗位置在 `wasm-falcon-kat.test.ts:128`，也就是 (a) |
+| T5 的翻轉檢查 | 驗章若一律成功就會失敗 | 寫在測試裡，每次執行都會檢查 |
+
+### 獨立審查
+
+交給沒看過實作過程的子代理，對照核准的 T1–T6 審查測試與 diff（11/25）。子代理實際跑了 `bun test tests/kat`（2 pass）、Extension `bun test src`（48 pass）與 typecheck、T5（5 pass）、ruff、`pytest --collect-only`（108 個）；沒有執行任何建置，也沒有動 `.deps`。
+
+**結論：程式與測試本身沒有必須修正的錯誤。** 子代理另外做了幾項獨立驗證：
+- 用 WASM 加 DRBG 產生 liboqs 自己的 KAT 格式，SHA-256 分別是 `f4f23c11…`、`46f9682e…`，與 liboqs `kats.json` 的 `all` 完全相同（第三個獨立來源）。
+- 讀 WASM 的全域變數：舊檔 `__stack_pointer` 初值 71,232，新檔 1,113,584，差值正好對應 64 KB 與 1 MB，證明新檔真的用 1 MB 堆疊編譯。
+- 各簽 2,000 次統計：Falcon-512 長度 647–663（17 種）、Falcon-1024 長度 1260–1284，T3b「20 次長度全同」的機率約 1e-15 以下，不會偶發失敗。
+- 把亂數來源換成「不動」或「全填 0」，T2 會失敗，證明「兩次金鑰不同」這個檢查有效。
+
+**必須修正（已處理）**
+
+| 項目 | 處理 |
+|---|---|
+| 協議導覽第 10 章的 Python 測試數仍是 103（實際 108） | 已更正（`2641264`） |
+| 工作紀錄缺紅燈與破壞檢查的實際結果 | 審查時完工段落尚未寫入工作紀錄；現在已補上本段的「測試結果」與「破壞檢查」，並註明 T5、T6 的紅燈是在重建前用舊的 `.wasm` 跑的 |
+
+**建議與處理方式**
+
+| 建議 | 處理 |
+|---|---|
+| T2 少檢查第二把私鑰的長度 | 已加（`2641264`），屬於加嚴 |
+| T4 沒有區分 C 端回 -1 或 -2 | 大小函式的錯誤訊息改為帶出代碼，T4 確認是 `code=-1`（`2641264`），屬於加嚴 |
+| 752／1462 的依據：規格書第 3.11 節列的是補滿格式的大小，不補滿格式的上限來自參考實作 `falcon.h` 的 `FALCON_SIG_COMPRESSED_MAXSIZE` | 測試註解已補上參考實作來源（`2641264`）；共用表 `description` 也引用第 3.11 節，記入待辦，Day 11 文件同步時修正 |
+| 工作紀錄行號（`setup-liboqs-emscripten.sh` 修改後位移、`build-liboqs-wasm.sh` 範圍） | 完工段落已用新行號，並在「和開工文件的差異」說明 |
+| `CLAUDE.md` 必跑清單的 `bun test tests/kat` 排在 `cd frontend && …` 之後，照順序在同一個 shell 執行會在 frontend 目錄下跑 | 修改 `CLAUDE.md` 需要使用者同意，記入待辦並詢問使用者 |
+| `LiboqsWasmBridge`、`NistCtrDrbg` 缺類別註解；`fromBytes()` 的 `@throws` 不完整；`pyproject.toml` 註解沒提 `tests/kat` | 都已補（`2641264`） |
+| 亂數來源可改成名稱更明顯的選項，或加測試確認 `loadFromExtensionResource()` 不用決定性亂數 | 不改。子代理確認實際流程只有 `liboqs-wasm-signer.ts:10` 呼叫 `loadFromExtensionResource()`，它不轉傳亂數參數；`fromBytes()` 的註解已明寫只有 KAT 測試能傳。記入待辦，Day 10 測試補強時再評估 |
+| Extension 的 bridge 是單例，WASM 一旦 trap，同一個實例之後都會壞 | 記入待辦（不屬於今天的範圍） |
+| 實際工具鏈是 `C:\emsdk` 的 emcc 5.0.7，`CLAUDE.md`「環境注意事項」寫的是 `extension/emsdk` | 記入待辦並詢問使用者（改 `CLAUDE.md` 需要同意） |
+| 完工段落要說明 commit 安排、`918ef7f` 單獨看 CI 會紅 | 已寫在「和開工文件的差異」 |
+| 名詞表加 WASI | 已加（`2641264`） |
+
+**確認沒問題**：T1–T6 每個子情境都有測試，沒有被改弱或跳過；KAT 雜湊確實由腳本從官方檔案算出，並有三個獨立來源互相印證（NIST 公開的第 0 筆、liboqs 的 `single`、liboqs 的 `all`）；DRBG 逐行對照 NIST `rng.c` 一致；`sm` 轉換與 `kat_sig.c:65–103` 一致；CI 的 KAT 步驟會在根目錄執行；`.deps/liboqs-emscripten-src` 停在 33815beb 且 `git status` 乾淨，`oqsconfig.h` 裡補滿格式未啟用；`CLAUDE.md` 的修改只有使用者同意的那一行；commit 訊息格式正確。
