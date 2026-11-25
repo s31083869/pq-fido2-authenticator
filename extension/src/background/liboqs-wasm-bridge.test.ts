@@ -13,8 +13,10 @@ import { LiboqsWasmBridge } from "./liboqs-wasm-bridge";
 // 進 git 的 WASM 檔，路徑相對於本測試檔：extension/src/background → extension/public/wasm
 const WASM_BYTES = readFileSync(new URL("../../public/wasm/pq_bridge.wasm", import.meta.url));
 
-// 各演算法的公鑰／私鑰／簽章大小（bytes），取自規格書，不取自被測程式：
-// ML-DSA：FIPS 204 Table 2；FN-DSA：Falcon 第三輪規格 v1.2 第 3.11 節（簽章為不補滿格式的上限，決策 D2）。
+// 各演算法的公鑰／私鑰／簽章大小（bytes），取自外部依據，不取自被測程式：
+// ML-DSA：FIPS 204 Table 2。FN-DSA：公鑰、私鑰見 Falcon 第三輪規格 v1.2 第 3.11 節；簽章是不補滿格式的上限
+// （決策 D2），752／1462 取自 Falcon 參考實作 falcon.h 的 FALCON_SIG_COMPRESSED_MAXSIZE(logn)（logn = 9／10），
+// 與 liboqs sig_falcon.h、PQClean api.h 相同（依獨立審查補上這個來源）。
 const SPEC_SIZES = [
   ["ML-DSA-44", -48, 1312, 2560, 2420],
   ["ML-DSA-65", -49, 1952, 4032, 3309],
@@ -51,6 +53,7 @@ describe("pq_bridge.wasm", () => {
     expect(first.publicKey).toHaveLength(pk);
     expect(first.privateKey).toHaveLength(sk);
     expect(second.publicKey).toHaveLength(pk);
+    expect(second.privateKey).toHaveLength(sk);
     expect([...first.publicKey]).not.toEqual([...second.publicKey]);
   });
 
@@ -77,13 +80,14 @@ describe("pq_bridge.wasm", () => {
     expect(new Set(signatures.map((signature) => signature.length)).size).toBeGreaterThan(1);
   });
 
-  // T4：只對應 -54/-55，沒有誤加鄰近編號或 ES256。C 端回 -1，bridge 丟錯。
+  // T4：只對應 -54/-55，沒有誤加鄰近編號或 ES256。C 端回 -1（pq_alg_name() 沒有這個編號），bridge 丟錯；
+  // 錯誤訊息帶出代碼，區分 -1 與 -2（有名稱、但沒編進 liboqs.a），依獨立審查加嚴。
   // 依據：決策 D1；workflow.md F11。
   test.each([-7, -53, -56])("T4 rejects unsupported COSE alg %i", (alg) => {
     const unsupported = alg as unknown as SupportedAlg;
-    expect(() => bridge.publicKeyBytes(unsupported)).toThrow();
-    expect(() => bridge.secretKeyBytes(unsupported)).toThrow();
-    expect(() => bridge.signatureBytes(unsupported)).toThrow();
-    expect(() => bridge.generateKeyPair(unsupported)).toThrow();
+    expect(() => bridge.publicKeyBytes(unsupported)).toThrow(/code=-1\)/);
+    expect(() => bridge.secretKeyBytes(unsupported)).toThrow(/code=-1\)/);
+    expect(() => bridge.signatureBytes(unsupported)).toThrow(/code=-1\)/);
+    expect(() => bridge.generateKeyPair(unsupported)).toThrow(/code=-1\)/);
   });
 });

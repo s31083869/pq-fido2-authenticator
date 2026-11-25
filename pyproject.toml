@@ -30,4 +30,6 @@ dev = [
 # 只在專案自己的測試資料夾找測試。沒有這個設定時，在根目錄執行 pytest 會掃進
 # extension/emsdk 裡第三方套件的範例程式並執行它們（曾因此在根目錄產生多餘檔案）。
 # tests/integration 是跨元件（authenticator ↔ RP）的整合測試（Day 5 起）。
+# tests/kat 是官方 KAT 測試（Day 7 起）；目前只有 bun 測試（bun test tests/kat），pytest 在這裡收不到測試，
+# 依 CLAUDE.md「新增 tests/ 資料夾後要同步加進 testpaths」列入，之後的 Python KAT 測試放這裡就會被收進來。
 testpaths = ["authenticator/tests", "rp_server/tests", "shared/tests", "tests/integration", "tests/kat"]

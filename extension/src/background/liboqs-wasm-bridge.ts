@@ -64,6 +64,13 @@ const systemRandomBytes: RandomBytesSource = (out) => {
   }
 };
 
+/**
+ * pq_bridge.wasm（C 編譯成 WebAssembly 的 liboqs）的 TypeScript 包裝。
+ *
+ * 做什麼：在 WASM 的線性記憶體裡配置緩衝區、呼叫 C 匯出的函式、把結果複製回 JavaScript。
+ * 為什麼：Extension 的簽章器（liboqs-wasm-signer.ts）透過它在瀏覽器裡產生後量子金鑰與簽章，
+ * 使用者不需要安裝原生的 liboqs。C 端的 COSE → liboqs 對應見 extension/wasm/pq_bridge.c。
+ */
 export class LiboqsWasmBridge {
   private constructor(private readonly e: LiboqsWasmExports) {}
 
@@ -103,6 +110,8 @@ export class LiboqsWasmBridge {
    * @param randomBytes 亂數來源。**只有 KAT 測試會傳入決定性的 NIST DRBG**，讓輸出可以和官方答案逐 byte 比對；
    *   Extension 從不傳這個參數，一律使用系統 CSPRNG。傳入可預測的亂數會讓私鑰與簽章可被重現，絕不能用在實際流程
    * @returns 可以呼叫 liboqs 的 bridge
+   * @throws WebAssembly.CompileError wasmBytes 不是合法的 WASM
+   * @throws WebAssembly.LinkError WASM 需要的匯入與這裡提供的不符
    * @throws Error WASM 缺少必要的匯出函式
    */
   static async fromBytes(
@@ -160,26 +169,52 @@ export class LiboqsWasmBridge {
     return new LiboqsWasmBridge(instance.exports);
   }
 
+  /**
+   * 向 WASM 查詢公鑰大小（liboqs 的 length_public_key）。
+   *
+   * C 端回傳負值代表錯誤，錯誤訊息會帶出這個代碼，方便分辨原因（見 pq_bridge.c）：
+   * -1：pq_alg_name() 沒有這個 COSE 編號；-2：有對應名稱，但 liboqs.a 沒有編進這個演算法。
+   *
+   * @param alg COSE 演算法編號
+   * @returns 公鑰大小（bytes）
+   * @throws Error C 端回傳 0 或負值，訊息含 code=<回傳值>
+   */
   publicKeyBytes(alg: SupportedAlg): number {
     const size = this.e.pq_public_key_bytes(alg);
     if (size <= 0) {
-      throw new Error(`[liboqs-wasm] invalid public key size for alg=${alg}`);
+      throw new Error(`[liboqs-wasm] invalid public key size for alg=${alg} (code=${size})`);
     }
     return size;
   }
 
+  /**
+   * 向 WASM 查詢私鑰大小（liboqs 的 length_secret_key）。錯誤代碼同 publicKeyBytes()。
+   *
+   * @param alg COSE 演算法編號
+   * @returns 私鑰大小（bytes）
+   * @throws Error C 端回傳 0 或負值，訊息含 code=<回傳值>
+   */
   secretKeyBytes(alg: SupportedAlg): number {
     const size = this.e.pq_secret_key_bytes(alg);
     if (size <= 0) {
-      throw new Error(`[liboqs-wasm] invalid secret key size for alg=${alg}`);
+      throw new Error(`[liboqs-wasm] invalid secret key size for alg=${alg} (code=${size})`);
     }
     return size;
   }
 
+  /**
+   * 向 WASM 查詢簽章大小（liboqs 的 length_signature）。錯誤代碼同 publicKeyBytes()。
+   *
+   * ML-DSA 是固定長度；FN-DSA（不補滿格式）是上限，只用來配置緩衝區，實際長度由 sign() 取得。
+   *
+   * @param alg COSE 演算法編號
+   * @returns 簽章大小或上限（bytes）
+   * @throws Error C 端回傳 0 或負值，訊息含 code=<回傳值>
+   */
   signatureBytes(alg: SupportedAlg): number {
     const size = this.e.pq_signature_bytes(alg);
     if (size <= 0) {
-      throw new Error(`[liboqs-wasm] invalid signature size for alg=${alg}`);
+      throw new Error(`[liboqs-wasm] invalid signature size for alg=${alg} (code=${size})`);
     }
     return size;
   }

@@ -9,6 +9,13 @@
 // 它本身也是被測的程式，但它產生的每筆 seed 與 msg 就在官方檔案裡，寫錯時 T6 (a) 一定失敗。
 import { createCipheriv } from "node:crypto";
 
+/**
+ * NIST AES-256 CTR DRBG（rng.c）的 TypeScript 版本。
+ *
+ * 做什麼：以 48 bytes 種子初始化後，每次 fill()／randomBytes() 都依 rng.c 的規則產生下一段 bytes。
+ * 為什麼：T6 用它取代 WASM 的亂數，讓 Falcon 的輸出可以和官方 KAT 逐 byte 比對。
+ * 輸入與輸出：建構時給種子；之後每次呼叫回傳（或填入）指定長度的 bytes。
+ */
 export class NistCtrDrbg {
   /** AES-256 金鑰（rng.c 的 DRBG_ctx.Key） */
   private key = new Uint8Array(32);

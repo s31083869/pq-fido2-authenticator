@@ -1376,7 +1376,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
   <div class="two-col">
     <div class="card">
       <h3>已完成</h3>
-      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 路線都能用；Extension 路線在 Day 7 之前只有 ML-DSA-44 能用（WASM 預設 64 KB 的堆疊不夠 ML-DSA-65／87 產生金鑰，Day 7 加大到 1 MB 後修正）；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 103 個（含跨元件的整合測試 <code>tests/integration/</code>）、Extension 48 個、KAT 2 個（<code>tests/kat/</code>，各 100 筆）、前端 10 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。Day 3 起 RP 宣告並接受 FN-DSA（-54/-55），註冊時也會檢查公鑰的 kty 與長度。Day 4 補上 Python authenticator 選用 FN-DSA 的測試，註冊時改為先檢查演算法、再做使用者驗證。Day 5 加入 authenticator ↔ RP 的整合測試，前端選單加入 FN-DSA，並改為只在 RP 的清單內重排；FN-DSA-512、FN-DSA-1024 已用真的 Windows Hello 跑通 Python bridge 路線的註冊與登入。Day 6 Extension 的支援清單、型別與金鑰／簽章大小改從共用表讀取並加入 FN-DSA，會依 RP 的清單選用 -54/-55；FN-DSA 簽章長度不固定，原封不動回傳。Day 7 WASM 編進 Falcon-512／1024：bun 測試直接載入真的 <code>pq_bridge.wasm</code>；WASM 產生的簽章交給 RP 的 Python liboqs 驗章成功（兩份分別編譯的實作互相驗證）；WASM 版 Falcon 與官方第三輪 KAT 各 100 筆逐 byte 一致。</p>
+      <p>ML-DSA-44/65/87 的註冊與登入，Python bridge 路線都能用；Extension 路線在 Day 7 之前只有 ML-DSA-44 能用（WASM 預設 64 KB 的堆疊不夠 ML-DSA-65／87 產生金鑰，Day 7 加大到 1 MB 後修正）；支援 Windows Hello 與 Touch ID 使用者驗證；測試共有 Python 108 個（含跨元件的整合測試 <code>tests/integration/</code>）、Extension 48 個、KAT 2 個（<code>tests/kat/</code>，各 100 筆）、前端 10 個。Day 1 另外修正了 5 個驗章與安全問題，見 <code>codex/worklog/day-01.md</code>。Day 2 建立共用演算法表 <code>shared/pq-algorithms.json</code>，RP 與 Python authenticator 的演算法對照都改從這份表讀取。Day 3 起 RP 宣告並接受 FN-DSA（-54/-55），註冊時也會檢查公鑰的 kty 與長度。Day 4 補上 Python authenticator 選用 FN-DSA 的測試，註冊時改為先檢查演算法、再做使用者驗證。Day 5 加入 authenticator ↔ RP 的整合測試，前端選單加入 FN-DSA，並改為只在 RP 的清單內重排；FN-DSA-512、FN-DSA-1024 已用真的 Windows Hello 跑通 Python bridge 路線的註冊與登入。Day 6 Extension 的支援清單、型別與金鑰／簽章大小改從共用表讀取並加入 FN-DSA，會依 RP 的清單選用 -54/-55；FN-DSA 簽章長度不固定，原封不動回傳。Day 7 WASM 編進 Falcon-512／1024：bun 測試直接載入真的 <code>pq_bridge.wasm</code>；WASM 產生的簽章交給 RP 的 Python liboqs 驗章成功（兩份分別編譯的實作互相驗證）；WASM 版 Falcon 與官方第三輪 KAT 各 100 筆逐 byte 一致。</p>
     </div>
     <div class="card">
       <h3>進行中</h3>
@@ -1498,6 +1498,7 @@ footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line);
     <dl class="terms">
       <div class="term"><dt>liboqs</dt><dd>Open Quantum Safe 專案的 C 語言後量子密碼函式庫。</dd></div>
       <div class="term"><dt>liboqs-python</dt><dd>liboqs 的 Python 介面，RP 與 Python authenticator 都透過它呼叫 liboqs。</dd></div>
+      <div class="term"><dt>WASI</dt><dd>WebAssembly System Interface：WASM 程式向外界要「系統服務」（例如亂數 <code>random_get</code>、輸出 <code>fd_write</code>）時呼叫的一組標準函式。本專案的 <code>pq_bridge.wasm</code> 需要的幾個 WASI 函式由 <code>liboqs-wasm-bridge.ts</code> 提供。</dd></div>
       <div class="term"><dt>WebAssembly（WASM）</dt><dd>瀏覽器可以執行的二進位程式格式；Extension 用它在瀏覽器裡執行 liboqs。</dd></div>
       <div class="term"><dt>Emscripten</dt><dd>把 C 程式編譯成 WebAssembly 的工具鏈。</dd></div>
       <div class="term"><dt>Playwright</dt><dd>瀏覽器自動化工具；Python bridge 用它開 Chromium 並注入腳本。</dd></div>
