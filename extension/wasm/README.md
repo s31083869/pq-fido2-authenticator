@@ -5,7 +5,7 @@ Native bridge source layer compiled by Emscripten.
 ## File
 
 1. `pq_bridge.c`
-   1. maps COSE alg ids (`-48/-49/-50`) to liboqs ML-DSA names
+   1. maps COSE alg ids to liboqs names: `-48/-49/-50` → `ML-DSA-44/65/87`，`-54/-55` → `Falcon-512/1024`（不補滿格式，決策 D2；Day 7 加入）
    2. exports C ABI functions for JS wasm bridge
    3. handles keypair/sign calls and size queries
 

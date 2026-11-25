@@ -84,6 +84,7 @@ uv run ruff check authenticator rp_server shared tests
 uv run ruff format --check authenticator rp_server shared tests
 cd extension && bun test src && bun run typecheck
 cd frontend && bun test src && bun run lint && bunx tsc --noEmit
+bun test tests/kat  # 在專案根目錄執行
 ```
 
 新增 `tests/` 資料夾後，要同步加進 `pyproject.toml` 的 `testpaths` 與上面的 ruff 路徑。
@@ -108,5 +109,5 @@ cd frontend && bun test src && bun run lint && bunx tsc --noEmit
 ## 環境注意事項
 
 - liboqs 原生函式庫裝在 `C:\Users\user\_oqs`（0.14.0）。若找不到，第一次 `import oqs` 時會自動從網路下載並編譯 liboqs；需要時先問使用者，不要在不知情的情況下觸發。
-- Extension 的 WASM 由 `extension/scripts/` 的腳本在 Git Bash 中建置，需要 `extension/emsdk`、CMake 與 `C:\mingw64` 的 mingw32-make。
+- Extension 的 WASM 由 `extension/scripts/` 的腳本在 Git Bash 中建置，需要 Emscripten、CMake 與 `C:\mingw64` 的 mingw32-make。Emscripten 實際使用的是 `C:\emsdk` 的 emcc 5.0.7（用它可以逐 byte 重現進 git 的 `pq_bridge.wasm`）；`extension/emsdk` 裡沒有安裝編譯器。
 - Python authenticator 在 Windows 上會跳出 Windows Hello；自動化測試一律使用 `NoopVerifier`。

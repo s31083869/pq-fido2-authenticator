@@ -120,17 +120,17 @@
 
 **完成標準**：TypeScript 型別檢查與 bun 測試通過。結果：Extension 測試由 11 個增為 30 個，型別檢查通過。11/24 使用者確認保留 Extension 的 FN-DSA（Decision Log 第 63 條）。
 
-### Day 7｜11/22：F11 + F12 WASM
-- [ ] `pq_bridge.c` 加入 -54 → `Falcon-512`、-55 → `Falcon-1024`（0.5h）
-- [ ] 編譯清單加入 `SIG_falcon_512;SIG_falcon_1024`，`LIBOQS_REF` 固定版本（0.5h）
-- [ ] 重建 `liboqs.a`、`pq_bridge.wasm` 與 extension（1h）
-- [ ] 確認 WASM 回報的金鑰與簽章大小正確；ML-DSA 既有測試仍通過（1h）
+### Day 7｜11/22（實際 11/25）：F11 + F12 WASM（已完成，詳見 `codex/worklog/day-07.md`）
+- [x] `pq_bridge.c` 加入 -54 → `Falcon-512`、-55 → `Falcon-1024`（0.5h）
+- [x] 編譯清單加入 `SIG_falcon_512;SIG_falcon_1024`，`LIBOQS_REF` 固定版本（0.5h）（另外加大 WASM 堆疊到 1 MB，修正 ML-DSA-65／87 既有的越界）
+- [x] 重建 `liboqs.a`、`pq_bridge.wasm` 與 extension（1h）（`extension/dist` 未重建，載入 Extension 前需要 `bun run build`）
+- [x] 確認 WASM 回報的金鑰與簽章大小正確；ML-DSA 既有測試仍通過（1h）（新增載入真的 WASM 的 T1–T4，以及 WASM 簽章 → RP 驗章的 T5）
 
-**完成標準**：`pq_bridge.wasm` 可產生 Falcon 金鑰與簽章。
+**完成標準**：`pq_bridge.wasm` 可產生 Falcon 金鑰與簽章。結果：達成；Extension 測試由 30 個增為 48 個，Python 由 103 個增為 108 個，另有 KAT 2 個。
 
 ### Day 8｜11/23：Extension 開放 localhost + WASM KAT
 - [ ] manifest 與 `isTrustedSender()` 開放 `http://localhost:3000`（僅開發用）（1h）
-- [ ] WASM 版 Falcon 跑官方 KAT 比對（2h）
+- [x] WASM 版 Falcon 跑官方 KAT 比對（2h）（11/25 依使用者指示提前到 Day 7 完成：Falcon-512／1024 各 100 筆與官方逐 byte 一致，`tests/kat/`）
 
 **完成標準**：WASM 版 Falcon 與官方 KAT 一致。
 

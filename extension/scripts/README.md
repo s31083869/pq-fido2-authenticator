@@ -27,6 +27,9 @@ Important behavior:
    1. `SIG_ml_dsa_44`
    2. `SIG_ml_dsa_65`
    3. `SIG_ml_dsa_87`
+   4. `SIG_falcon_512`（FN-DSA-512，不補滿格式，Day 7 加入）
+   5. `SIG_falcon_1024`（FN-DSA-1024，同上）
+5. `LIBOQS_REF` 預設固定為 commit `33815beb2ac404cba36ecf713f9fd5f1d868763a`（決策 D4），不再追 `main`；改版本後必須重跑 `bun test tests/kat`
 
 Main env vars:
 
@@ -49,6 +52,11 @@ Purpose:
 
 1. compile/link `wasm/pq_bridge.c` + `liboqs.a`
 2. output `public/wasm/pq_bridge.wasm`
+3. `-s STACK_SIZE=1048576`（1 MB 堆疊）：預設 64 KB 不夠 ML-DSA-65／87 產生金鑰與 FN-DSA-1024 簽章（Day 7）
+
+## `wasm-sign-vectors.ts`
+
+用 `public/wasm/pq_bridge.wasm` 對 5 個演算法各產生金鑰並簽一則固定訊息，輸出 JSON。由 `tests/integration/test_wasm_cross_verify.py` 呼叫，交給 RP 的 Python liboqs 驗章（Day 7 T5）。
 
 Input resolution order:
 

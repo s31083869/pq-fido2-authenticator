@@ -7,8 +7,12 @@ EM_CACHE_DIR="${EM_CACHE:-$DEPS_DIR/emscripten-cache}"
 LIBOQS_SRC_DIR="${LIBOQS_SRC_DIR:-$DEPS_DIR/liboqs-emscripten-src}"
 LIBOQS_BUILD_DIR="${LIBOQS_BUILD_DIR:-$DEPS_DIR/liboqs-emscripten-build}"
 LIBOQS_REPO="${LIBOQS_REPO:-https://github.com/open-quantum-safe/liboqs.git}"
-LIBOQS_REF="${LIBOQS_REF:-main}"
-LIBOQS_MINIMAL_BUILD="${LIBOQS_MINIMAL_BUILD:-SIG_ml_dsa_44;SIG_ml_dsa_65;SIG_ml_dsa_87}"
+# liboqs 固定在這個 commit（決策 D4，0.15.0-60-g33815beb），不再追 main：上游變動不會悄悄改變 WASM 的行為。
+# 要升級時改這一行，並且必須重跑官方 KAT（CLAUDE.md「KAT」：bun test tests/kat）。
+LIBOQS_REF="${LIBOQS_REF:-33815beb2ac404cba36ecf713f9fd5f1d868763a}"
+# 只編專案用到的 5 個簽章演算法：ML-DSA-44/65/87 與 FN-DSA 的 Falcon-512/1024（不補滿格式，決策 D2）。
+# 這份清單必須和 wasm/pq_bridge.c 的 pq_alg_name() 一致，少編一個時該演算法的 OQS_SIG_new() 會回傳 NULL。
+LIBOQS_MINIMAL_BUILD="${LIBOQS_MINIMAL_BUILD:-SIG_ml_dsa_44;SIG_ml_dsa_65;SIG_ml_dsa_87;SIG_falcon_512;SIG_falcon_1024}"
 
 # shellcheck disable=SC1091
 source "$ROOT_DIR/scripts/emscripten-env.sh"

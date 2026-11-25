@@ -74,12 +74,16 @@ mkdir -p "$OUT_DIR"
 EXPORTED='["_malloc","_free","_pq_public_key_bytes","_pq_secret_key_bytes","_pq_signature_bytes","_pq_generate_keypair","_pq_sign"]'
 
 echo "[build:wasm] Building $OUT"
+# STACK_SIZE：Emscripten 預設的堆疊只有 64 KB，ML-DSA-65/87 產生金鑰、FN-DSA-1024 簽章
+# （liboqs pqclean_falcon-1024_clean/pqclean.c 在堆疊上放 72 KB 暫存區）都會超過，寫出堆疊範圍、
+# 破壞其他記憶體（Day 7 以真的 WASM 測試發現）。加大到 1 MB，留足餘裕。
 emcc "$SRC" \
   -I"$LIBOQS_INCLUDE_DIR" \
   "$LIBOQS_STATIC_LIB" \
   -O3 \
   -s STANDALONE_WASM=1 \
   -s ALLOW_MEMORY_GROWTH=1 \
+  -s STACK_SIZE=1048576 \
   -s EXPORTED_FUNCTIONS="$EXPORTED" \
   -Wl,--no-entry \
   -o "$OUT"

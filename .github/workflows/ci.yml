@@ -42,6 +42,12 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
+      # tests/integration/test_wasm_cross_verify.py 要用 bun 執行 WASM 簽章腳本，再交給 Python liboqs 驗章
+      # （Day 7 T5）；版本和 Extension 工作相同。bun 只用來執行腳本，不安裝任何 npm 套件
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+
       # 依 uv.lock 安裝相依套件（含 dev 群組的 pytest、ruff）；--locked 確保鎖檔和 pyproject.toml 一致
       - name: 安裝 Python 相依套件
         run: uv sync --locked
@@ -78,6 +84,12 @@ jobs:
 
       - name: typecheck
         run: bun run typecheck
+
+      # 官方 KAT：WASM 版 Falcon-512／1024 各 100 筆，必須和 Falcon 第三輪官方檔案逐 byte 一致
+      # （CLAUDE.md「KAT」；Day 7 T6）。測試放在專案根目錄的 tests/kat，所以這一步從根目錄執行
+      - name: KAT（WASM 版 Falcon）
+        working-directory: .
+        run: bun test tests/kat
 
   frontend:
     name: Frontend（bun test、eslint、tsc）
